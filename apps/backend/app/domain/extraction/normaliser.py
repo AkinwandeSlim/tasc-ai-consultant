@@ -109,6 +109,13 @@ def _find_best_match(
             best_score = score
             break
 
+        # Check if any word in the text matches the value itself
+        value_lower = value.lower()
+        for word in words:
+            if word == value_lower:
+                score = max(score, 0.85)
+                break
+
         # Check alias matches with word-level overlap
         for alias in aliases:
             alias_lower = alias.lower()

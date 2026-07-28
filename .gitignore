@@ -32,6 +32,7 @@ data/payloads/
 *.swo
 .vscode/
 *.sublime-workspace
+chatgpt.md
 
 # OS
 .DS_Store

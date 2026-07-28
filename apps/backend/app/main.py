@@ -16,6 +16,8 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.api.router import api_router
 from app.api.errors import register_exception_handlers
+from app.api.middleware.correlation import CorrelationIdMiddleware
+from app.lifespan import run_startup_sequence, run_shutdown_sequence
 
 
 @asynccontextmanager
@@ -27,13 +29,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings)
     app.state.settings = settings
 
-    # TODO: Initialize container, providers, vector store, prompt registry
-    # See apps/backend/app/lifespan.py for the full startup sequence
+    # Run ordered startup sequence (S1-S11)
+    await run_startup_sequence(app)
 
     yield
 
     # Shutdown
-    # TODO: Flush session state, close HTTPX clients, persist dead letters
+    await run_shutdown_sequence(app)
 
 
 def create_app() -> FastAPI:
@@ -43,7 +45,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="TASC API",
         description="Trizen AI Solutions Consultant — Backend API",
-        version="1.0.0",
+        version=settings.APP_VERSION,
         docs_url=f"{settings.API_PREFIX}/docs" if settings.DOCS_ENABLED else None,
         redoc_url=None,
         lifespan=lifespan,
@@ -65,6 +67,7 @@ def create_app() -> FastAPI:
         GZipMiddleware,
         minimum_size=1000,
     )
+    app.add_middleware(CorrelationIdMiddleware)
 
     # --- Exception handlers ---
     register_exception_handlers(app)

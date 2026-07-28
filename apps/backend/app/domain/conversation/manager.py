@@ -256,12 +256,13 @@ class ConversationManager:
         if "industry" in extraction.slots:
             raw = extraction.slots["industry"].get("raw", "")
             normalised = self._normaliser.normalise_industry(raw)
-            extraction.slots["industry"]["value"] = normalised.value
-            extraction.slots["industry"]["normalised"] = normalised.normalised
-            extraction.slots["industry"]["confidence"] = max(
-                extraction.slots["industry"].get("confidence", 0.0),
-                normalised.confidence if normalised.confidence > 0 else 0.0,
-            )
+            if normalised.value:
+                extraction.slots["industry"]["value"] = normalised.value
+                extraction.slots["industry"]["normalised"] = normalised.normalised
+                extraction.slots["industry"]["confidence"] = max(
+                    extraction.slots["industry"].get("confidence", 0.0),
+                    normalised.confidence if normalised.confidence > 0 else 0.0,
+                )
 
         if "business_size" in extraction.slots:
             raw = extraction.slots["business_size"].get("raw", "")

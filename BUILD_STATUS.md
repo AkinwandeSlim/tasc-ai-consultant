@@ -14,6 +14,7 @@
 | **G4 — Documentation** | ✅ **COMPLETE** | README.md, BUILD_STATUS.md, CONTRIBUTING.md |
 | **G5 — Sprint 2A: AI Domain Foundation** | ✅ **COMPLETE** | Conversation domain, business domain, lead qualification models, recommendation models, prompt registry, state definitions, simulation framework, configuration, exceptions, tests |
 | **G6 — Sprint 3: Consultation Engine** | ✅ **COMPLETE** | Rule-based extraction, deterministic qualification, recommendation engine, conversation services, consultation orchestrator, simulation scenarios, response contract, 140 unit tests |
+| **G7 — Sprint 4: API Integration Layer** | ✅ **COMPLETE** | FastAPI REST endpoints, in-memory session store, request/response DTOs, correlation middleware, error handling, health/demo endpoints, 32 API tests |
 
 ## What Has Been Created
 
@@ -74,6 +75,19 @@
 - [x] **Response Contract** — ConsultationResponse model with all required fields: assistant_message, conversation_phase, business_profile, lead_score, recommendations, completion_percentage, next_question
 - [x] **Tests** — 140 unit tests covering intent classification, slot extraction, normalisation, merging, phase transitions, scoring components, overrides, recommendation engine, banding, completion detection, memory, conversation manager, orchestrator, simulation scenarios, event emitter, pipeline stages, and end-to-end consultation flow
 
+### Sprint 4 — API Integration Layer
+- [x] **In-Memory Session Store** — Abstract SessionRepository interface with InMemorySessionStore, async methods designed for future Redis swap
+- [x] **Chat Endpoints** — POST /api/v1/chat/start (201 with session_id + greeting), POST /api/v1/chat/message (full consultation contract), GET /api/v1/chat/{session_id} (state snapshot + message history)
+- [x] **Health Endpoint** — GET /api/health with status, version, simulation_mode, timestamp; /api/health/live and /api/health/ready probes
+- [x] **Demo Scenarios Endpoint** — GET /api/v1/demo/scenarios listing all simulation scenarios with metadata
+- [x] **Request/Response DTOs** — Pydantic models for all API contracts, separate from internal domain models
+- [x] **Correlation ID Middleware** — X-Correlation-Id header on all requests/responses with UUID generation
+- [x] **Exception Handlers** — Standard error envelope for 400, 404, 422, 500 responses with correlation_id
+- [x] **OpenAPI / Swagger** — Auto-generated schema at /api/docs with endpoint summaries and descriptions
+- [x] **Dependency Injection** — Singleton providers for ConsultationOrchestrator, ScenarioRegistry, InMemorySessionStore via FastAPI Depends()
+- [x] **requirements.txt** — Generated from pyproject.toml for pip-based installation
+- [x] **Tests** — 32 API tests covering health, start session, send message, invalid session, anti-persona, completed sessions, session snapshots, demo scenarios, error envelopes, correlation IDs, full consultation flow, concurrent sessions, edge cases
+
 ### Frontend (`apps/frontend/`)
 - [x] `package.json` — dependencies (Next.js 15, React 19, TanStack Query, etc.)
 - [x] `tsconfig.json` — strict TypeScript configuration
@@ -102,26 +116,25 @@
 
 Per the implementation brief, the following are intentionally **not implemented**:
 - Chat UI business logic
-- API endpoint handlers (route bodies)
-- AI model integration (OpenAI, embeddings) — Sprint 4
-- RAG / ChromaDB integration — Sprint 4
-- OpenAI provider integration — Sprint 4
-- Advanced extraction services (LLM-based intent/entity extraction) — Sprint 4
-- Session persistence — Sprint 4
-- n8n workflow definitions — Sprint 4
-- n8n dispatcher integration — Sprint 4
-- Frontend SSE streaming — Sprint 4
+- AI model integration (OpenAI, embeddings)
+- RAG / ChromaDB integration
+- OpenAI provider integration
+- LLM-based extraction (intent/entity)
+- Authentication / authorisation
+- Persistent database (PostgreSQL, etc.)
+- Streaming / SSE endpoints
+- Frontend components
+- n8n workflow definitions and dispatcher integration
 
 ## Next Steps
 
-### Sprint 4 — AI Integration & API Layer
-1. **Backend**: Implement API route handlers for sessions, messages, consultations
-2. **AI**: Integrate OpenAI chat and embedding providers via provider protocol
-3. **RAG**: Implement ChromaDB adapter, chunking, embedding pipeline, retrieval service
-4. **Advanced Extraction**: LLM-based intent classification, structured slot extraction with repair
-5. **Scoring**: Wire configurable weights from resource files into scoring engine
-6. **Recommendation**: LLM-based rationale generation instead of templates
-7. **Summary**: Implement executive summary generation
-8. **Frontend**: Implement SSE streaming, conversation UI, session management
-9. **Automation**: Define n8n workflows for Sheets, Gmail, Telegram
-10. **Testing**: Integration, contract, and evaluation tests
+### Sprint 5 — AI Integration & Advanced Services
+1. **AI**: Integrate OpenAI chat and embedding providers via provider protocol
+2. **RAG**: Implement ChromaDB adapter, chunking, embedding pipeline, retrieval service
+3. **Advanced Extraction**: LLM-based intent classification, structured slot extraction with repair
+4. **Scoring**: Wire configurable weights from resource files into scoring engine
+5. **Recommendation**: LLM-based rationale generation instead of templates
+6. **Summary**: Implement executive summary generation
+7. **Frontend**: Implement SSE streaming, conversation UI, session management
+8. **Automation**: Define n8n workflows for Sheets, Gmail, Telegram
+9. **Testing**: Integration, contract, and evaluation tests
