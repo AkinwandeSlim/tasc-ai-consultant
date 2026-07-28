@@ -3,6 +3,8 @@
 Every exception carries an error code (stable machine-readable identifier)
 and a human-readable message suitable for the visitor. Exceptions here are
 caught by the API error handler and converted to the standard error envelope.
+
+References: PRD Section 6.9 (Error envelope), Implementation Constitution Section 4
 """
 
 from __future__ import annotations
@@ -135,3 +137,156 @@ class ContentBlockedError(TASCError):
     code = "CONTENT_BLOCKED"
     message = "I'm here to discuss business challenges. Let me know how I can help."
     http_status = 400
+
+
+# --- Conversation Domain ---
+
+class ConversationError(TASCError):
+    """Base error for conversation domain failures."""
+    code = "CONVERSATION_ERROR"
+    message = "An error occurred while processing the conversation."
+    http_status = 500
+
+
+class PhaseTransitionError(ConversationError):
+    """Raised when an invalid phase transition is attempted."""
+    code = "INVALID_PHASE_TRANSITION"
+    message = "The requested phase transition is not allowed."
+    http_status = 409
+
+
+class HistoryCompactionError(ConversationError):
+    """Raised when history compaction fails."""
+    code = "HISTORY_COMPACTION_ERROR"
+    message = "An error occurred while compacting conversation history."
+    http_status = 500
+
+
+# --- Qualification Domain ---
+
+class QualificationError(TASCError):
+    """Base error for qualification domain failures."""
+    code = "QUALIFICATION_ERROR"
+    message = "An error occurred during lead qualification."
+    http_status = 500
+
+
+class ScoringError(QualificationError):
+    """Raised when score computation encounters an error."""
+    code = "SCORING_ERROR"
+    message = "An error occurred while computing the lead score."
+    http_status = 500
+
+
+class OverrideEvaluationError(QualificationError):
+    """Raised when override rules cannot be evaluated."""
+    code = "OVERRIDE_ERROR"
+    message = "An error occurred while applying scoring overrides."
+    http_status = 500
+
+
+# --- Recommendation Domain ---
+
+class RecommendationError(TASCError):
+    """Base error for recommendation domain failures."""
+    code = "RECOMMENDATION_ERROR"
+    message = "An error occurred while generating recommendations."
+    http_status = 500
+
+
+class CandidateGenerationError(RecommendationError):
+    """Raised when recommendation candidates cannot be built."""
+    code = "CANDIDATE_ERROR"
+    message = "An error occurred while building service candidates."
+    http_status = 500
+
+
+class RationaleGenerationError(RecommendationError):
+    """Raised when rationale writing fails."""
+    code = "RATIONALE_ERROR"
+    message = "An error occurred while writing the recommendation rationale."
+    retryable = True
+    http_status = 500
+
+
+# --- Prompt Domain ---
+
+class PromptError(TASCError):
+    """Base error for prompt management failures."""
+    code = "PROMPT_ERROR"
+    message = "An error occurred while loading or rendering a prompt."
+    http_status = 500
+
+
+class PromptNotFoundError(PromptError):
+    """Raised when a prompt template is not found."""
+    code = "PROMPT_NOT_FOUND"
+    message = "The requested prompt template was not found."
+    http_status = 404
+
+
+class PromptRenderError(PromptError):
+    """Raised when a prompt template fails to render."""
+    code = "PROMPT_RENDER_ERROR"
+    message = "An error occurred while rendering the prompt template."
+    http_status = 500
+
+
+class ManifestError(PromptError):
+    """Raised when the prompt manifest is invalid."""
+    code = "MANIFEST_ERROR"
+    message = "The prompt manifest is invalid or corrupt."
+    http_status = 500
+
+
+# --- Knowledge / RAG Domain ---
+
+class KnowledgeError(TASCError):
+    """Base error for knowledge domain failures."""
+    code = "KNOWLEDGE_ERROR"
+    message = "An error occurred while accessing the knowledge base."
+    http_status = 500
+
+
+class KnowledgeNotFoundError(KnowledgeError):
+    """Raised when a knowledge document is not found."""
+    code = "KNOWLEDGE_NOT_FOUND"
+    message = "The requested knowledge document was not found."
+    http_status = 404
+
+
+class ChunkingError(KnowledgeError):
+    """Raised when document chunking fails."""
+    code = "CHUNKING_ERROR"
+    message = "An error occurred during document chunking."
+    http_status = 500
+
+
+class IndexError(KnowledgeError):
+    """Raised when the knowledge index is unavailable."""
+    code = "INDEX_ERROR"
+    message = "The knowledge index is unavailable or corrupt."
+    http_status = 503
+
+
+# --- Simulation Domain ---
+
+class SimulationError(TASCError):
+    """Base error for simulation framework failures."""
+    code = "SIMULATION_ERROR"
+    message = "An error occurred in the simulation framework."
+    http_status = 500
+
+
+class ScenarioNotFoundError(SimulationError):
+    """Raised when a simulation scenario is not found."""
+    code = "SCENARIO_NOT_FOUND"
+    message = "The requested simulation scenario was not found."
+    http_status = 404
+
+
+class SimulationConfigError(SimulationError):
+    """Raised when simulation configuration is invalid."""
+    code = "SIMULATION_CONFIG_ERROR"
+    message = "The simulation configuration is invalid."
+    http_status = 500

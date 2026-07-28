@@ -12,7 +12,7 @@
 | **G2 — Frontend Scaffold** | ✅ **COMPLETE** | Next.js 15 project, TypeScript, Tailwind config, providers, services, types, component stubs, contexts, analysis panel components |
 | **G3 — Docker & CI** | ✅ **COMPLETE** | Docker Compose, backend/frontend Dockerfiles, CI workflow |
 | **G4 — Documentation** | ✅ **COMPLETE** | README.md, BUILD_STATUS.md, CONTRIBUTING.md |
-| **G5 — Implementation** | ⏳ **PENDING** | Awaiting further instructions |
+| **G5 — Sprint 2A: AI Domain Foundation** | ✅ **COMPLETE** | Conversation domain, business domain, lead qualification models, recommendation models, prompt registry, state definitions, simulation framework, configuration, exceptions, tests |
 
 ## What Has Been Created
 
@@ -41,6 +41,18 @@
 - [x] `app/resources/` — prompts (identity, policy, task), catalogue, weights, vocabularies, copy
 - [x] `tests/` — conftest, unit tests (config, security), test structure
 - [x] `knowledge/` — RAG corpus directory structure with manifest
+
+### Sprint 2A — AI Domain Foundation
+- [x] **Conversation Domain Models** — ConversationState, ConversationContext, ConversationHistory, ConversationMetadata, ConversationProgress, ConversationEvent, SessionStatus enum
+- [x] **Business Domain Models** — BusinessProfile, Industry, CompanySize, PainPoint, SlotValue, BudgetBand, Timeline, DecisionAuthority, DigitalMaturity, AIReadiness, AIReadinessFactors, BusinessConstraints, PainSpecificity, GrowthStage, TechnicalCapability, Urgency
+- [x] **Lead Qualification Domain Models** — LeadScore, LeadQualification, QualificationDimension, QualificationConfidence, QualificationReason, ScoreComponent, ScoringBreakdown
+- [x] **Recommendation Domain Models** — Recommendation, RecommendedService, RecommendationReason, RecommendationSummary, Confidence, Priority, RecommendationCategory
+- [x] **Conversation State Definitions** — PhaseController with full state machine, PHASE_DEFINITIONS, TRANSITION_RULES, evaluate() for phase transitions, anti-persona override, human request shortcut, wrap-up detection
+- [x] **Prompt Registry** — PromptRegistry with manifest loading, template caching, category-based retrieval, FilePromptLoader, PromptRenderer with 5-layer composition (L1-L5), structured prompt support
+- [x] **Simulation Framework** — SimulationConfig, Scenario, ScenarioResult, ScenarioRegistry, DefaultScenarioProvider, SimulationFramework with per-turn and full-scenario execution
+- [x] **Configuration** — AI settings (AI_PROMPT_MANIFEST_PATH, AI_PROMPT_BASE_PATH, AI_KNOWLEDGE_MANIFEST_PATH, AI_RULESET_VERSION, AI_DEFAULT_TEMPERATURE), simulation settings (SIMULATION_MODE, SIMULATION_SCENARIO_ID, latency/error config)
+- [x] **Custom Exceptions** — 18 domain-specific exceptions: ConversationError, PhaseTransitionError, HistoryCompactionError, QualificationError, ScoringError, OverrideEvaluationError, RecommendationError, CandidateGenerationError, RationaleGenerationError, PromptError, PromptNotFoundError, PromptRenderError, ManifestError, KnowledgeError, KnowledgeNotFoundError, ChunkingError, IndexError, SimulationError, ScenarioNotFoundError, SimulationConfigError
+- [x] **Tests** — 123 unit tests covering model serialization, validation, configuration, prompt loading, simulation configuration, conversation state definitions, exception hierarchy
 
 ### Frontend (`apps/frontend/`)
 - [x] `package.json` — dependencies (Next.js 15, React 19, TanStack Query, etc.)
@@ -71,20 +83,26 @@
 Per the implementation brief, the following are intentionally **not implemented**:
 - Chat UI business logic
 - API endpoint handlers (route bodies)
-- AI model integration (OpenAI, embeddings)
-- RAG / ChromaDB integration
-- n8n workflow definitions
-- Business logic (scoring, recommendation, extraction)
-- Lead qualification engine
-- Summary generation
-- Session persistence
-
-These are ready for implementation when instructed.
+- AI model integration (OpenAI, embeddings) — Sprint 2B
+- RAG / ChromaDB integration — Sprint 2B
+- Recommendation algorithms — Sprint 2B
+- Lead scoring algorithms — Sprint 2B
+- Intent classification and slot extraction — Sprint 2B
+- Summary generation — Sprint 2B
+- Session persistence — Sprint 2B
+- n8n workflow definitions — Sprint 2B
+- n8n dispatcher integration — Sprint 2B
+- Frontend SSE streaming — Sprint 2B
 
 ## Next Steps
 
-1. Backend: Implement API route handlers and domain services
-2. Frontend: Implement SSE streaming, conversation UI, session management
-3. AI: Integrate model providers, RAG pipeline, extraction, scoring
-4. Automation: Define n8n workflows for Sheets, Gmail, Telegram
-5. Testing: Unit, integration, contract, and evaluation tests
+### Sprint 2B — AI Integration & Business Logic
+1. **Backend**: Implement API route handlers for sessions, messages, consultations
+2. **AI**: Integrate OpenAI chat and embedding providers
+3. **RAG**: Implement ChromaDB adapter, chunking, embedding pipeline, retrieval service
+4. **Extraction**: Implement intent classification, slot extraction, normalisation, merging
+5. **Scoring**: Implement deterministic scoring engine with component maths and overrides
+6. **Recommendation**: Implement candidate builder, ranker, rationale generator
+7. **Frontend**: Implement SSE streaming, conversation UI, session management
+8. **Automation**: Define n8n workflows for Sheets, Gmail, Telegram
+9. **Testing**: Integration, contract, and evaluation tests

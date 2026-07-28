@@ -47,6 +47,11 @@ class SessionStore(str, Enum):
     REDIS = "redis"
 
 
+class SimulationMode(str, Enum):
+    ENABLED = "true"
+    DISABLED = "false"
+
+
 class Settings(BaseSettings):
     """Root settings model composed of nested groups.
 
@@ -84,6 +89,13 @@ class Settings(BaseSettings):
     LLM_CONNECT_TIMEOUT_SECONDS: float = 5.0
     LLM_MAX_RETRIES: int = 1
     LLM_STRUCTURED_MODE: StructuredMode = StructuredMode.SCHEMA
+
+    # --- AI Settings ---
+    AI_PROMPT_MANIFEST_PATH: str = "app/resources/prompts/manifest.yaml"
+    AI_PROMPT_BASE_PATH: str = "app/resources/prompts"
+    AI_KNOWLEDGE_MANIFEST_PATH: str = "knowledge/manifest.yaml"
+    AI_RULESET_VERSION: str = ""
+    AI_DEFAULT_TEMPERATURE: float = 0.3
 
     # --- Retrieval ---
     CHROMA_PERSIST_DIR: str = "./data/chroma"
@@ -137,6 +149,16 @@ class Settings(BaseSettings):
     ADMIN_API_KEY: SecretStr = Field(default="", validate_default=False)
     ADMIN_ROUTES_ENABLED: bool = False
     TRUSTED_HOSTS: list[str] = ["*"]
+
+    # --- Simulation ---
+    SIMULATION_MODE: bool = False
+    SIMULATION_SCENARIO_ID: str = ""
+    SIMULATION_DETERMINISTIC: bool = True
+    SIMULATION_LATENCY: bool = False
+    SIMULATION_LATENCY_MIN_MS: int = 200
+    SIMULATION_LATENCY_MAX_MS: int = 1500
+    SIMULATION_ERRORS: bool = False
+    SIMULATION_ERROR_RATE: float = 0.0
 
     # --- Observability ---
     SENTRY_DSN: str | None = None
