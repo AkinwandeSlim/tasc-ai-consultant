@@ -1,0 +1,27 @@
+# Business Size Controlled Vocabulary
+# Reference: PRD Section 12.5
+
+sizes:
+  - value: "1-10"
+    label: "1 to 10 employees"
+    aliases: ["micro", "startup", "sole trader", "freelancer", "tiny"]
+
+  - value: "11-50"
+    label: "11 to 50 employees"
+    aliases: ["small", "small business", "sme"]
+
+  - value: "51-200"
+    label: "51 to 200 employees"
+    aliases: ["medium", "mid-size", "mid market"]
+
+  - value: "201-500"
+    label: "201 to 500 employees"
+    aliases: ["upper mid", "large sme"]
+
+  - value: "501-1000"
+    label: "501 to 1,000 employees"
+    aliases: ["large", "enterprise lite"]
+
+  - value: "1000+"
+    label: "Over 1,000 employees"
+    aliases: ["enterprise", "corporate", "big", "thousands"]

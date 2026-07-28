@@ -1,0 +1,71 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+
+# FastAPI / Uvicorn
+data/chroma/
+data/sessions/
+data/payloads/
+*.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env.local
+.env.production
+.env.development
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Testing
+.coverage
+htmlcov/
+.coverage.*
+coverage.xml
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# n8n
+automation/n8n/.n8n.json
+
+# Vector store persistent data
+**/chroma/
+
+# Session and payload persistent data
+**/data/sessions/
+**/data/payloads/
+**/data/deadletter/

@@ -1,0 +1,27 @@
+# Budget Band Controlled Vocabulary
+# Reference: PRD Section 12.5
+
+budgets:
+  - value: under_5k
+    label: "Under $5,000"
+    aliases: ["tiny", "very small", "minimal", "under 5k"]
+
+  - value: "5k-15k"
+    label: "$5,000 to $15,000"
+    aliases: ["small", "limited", "5 to 15", "five to fifteen"]
+
+  - value: "15k-50k"
+    label: "$15,000 to $50,000"
+    aliases: ["moderate", "mid range", "15 to 50", "fifteen to fifty"]
+
+  - value: "50k-100k"
+    label: "$50,000 to $100,000"
+    aliases: ["significant", "50 to 100", "fifty to hundred"]
+
+  - value: "100k+"
+    label: "Over $100,000"
+    aliases: ["large", "enterprise", "six figures", "over 100k", "hundreds of thousands"]
+
+  - value: undisclosed
+    label: "Prefer not to say"
+    aliases: ["not sure", "don't know yet", "undisclosed"]

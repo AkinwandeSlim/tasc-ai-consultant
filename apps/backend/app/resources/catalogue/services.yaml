@@ -1,0 +1,72 @@
+# Trizen Services Catalogue
+# Reference: PRD Section 3.2
+
+services:
+  - code: SVC-AIA
+    name: AI Automation and Agents
+    description: >
+      Automate repetitive manual workflows, high-volume triage, inbox and
+      ticket handling using AI agents and workflow automation.
+    typical_engagement: "4 to 10 weeks, discovery plus build"
+    industries:
+      - logistics
+      - fintech
+      - healthcare
+      - retail
+
+  - code: SVC-WEB
+    name: Web and Application Development
+    description: >
+      Modern web and mobile application development, from outdated site
+      redesign to full product surface engineering.
+    typical_engagement: "6 to 16 weeks"
+    industries:
+      - retail
+      - fintech
+      - professional_services
+
+  - code: SVC-DAT
+    name: Data Engineering and Analytics
+    description: >
+      Extract, transform, and load data from spreadsheets and silos into
+      reliable reporting and analytics infrastructure.
+    typical_engagement: "6 to 12 weeks"
+    industries:
+      - logistics
+      - fintech
+      - healthcare
+      - manufacturing
+
+  - code: SVC-INT
+    name: Systems Integration
+    description: >
+      Connect tools and platforms that do not talk to each other, eliminating
+      duplicate data entry and manual handoffs.
+    typical_engagement: "3 to 8 weeks"
+    industries:
+      - logistics
+      - healthcare
+      - manufacturing
+      - education
+
+  - code: SVC-CLD
+    name: Cloud and DevOps
+    description: >
+      Infrastructure modernisation, CI/CD pipeline setup, cloud migration,
+      scaling and cost optimisation.
+    typical_engagement: "4 to 10 weeks"
+    industries:
+      - fintech
+      - retail
+      - professional_services
+
+  - code: SVC-CON
+    name: Technology Strategy Consulting
+    description: >
+      Technology roadmap, build-versus-buy assessment, vendor evaluation,
+      and digital maturity assessment.
+    typical_engagement: "2 to 6 weeks"
+    industries:
+      - professional_services
+      - education
+      - healthcare

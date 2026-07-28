@@ -1,0 +1,3 @@
+"""Timing middleware."""
+
+# TODO: Implement

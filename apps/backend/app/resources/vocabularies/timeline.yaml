@@ -1,0 +1,23 @@
+# Timeline Controlled Vocabulary
+# Reference: PRD Section 12.5
+
+timelines:
+  - value: immediate
+    label: "Immediately"
+    aliases: ["asap", "urgent", "right now", "now", "this month"]
+
+  - value: "1-3_months"
+    label: "1 to 3 months"
+    aliases: ["next quarter", "soon", "a few months", "short term"]
+
+  - value: "3-6_months"
+    label: "3 to 6 months"
+    aliases: ["this year", "mid year", "a quarter or two"]
+
+  - value: "6-12_months"
+    label: "6 to 12 months"
+    aliases: ["end of year", "next year", "longer term", "planning"]
+
+  - value: exploring
+    label: "Just exploring"
+    aliases: ["no rush", "browsing", "researching", "not sure yet"]

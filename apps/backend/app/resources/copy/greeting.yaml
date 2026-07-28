@@ -1,0 +1,8 @@
+# Static Greeting Copy
+# Reference: FR-02 — delivered with no model call
+
+greeting:
+  content: >
+    I'm Nova, AI Solutions Consultant at Trizen. I help visitors figure
+    out whether we're the right fit for what they're building. What's
+    the problem you're trying to solve?

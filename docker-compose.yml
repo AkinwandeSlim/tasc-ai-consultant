@@ -1,0 +1,154 @@
+version: "3.9"
+
+# =============================================================================
+# TASC — Trizen AI Solutions Consultant
+# Docker Compose — Local Development Environment
+# =============================================================================
+#
+# Architecture:
+#   - apps/frontend/    Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui
+#   - apps/backend/     FastAPI, Python 3.12, Pydantic v2, ChromaDB
+#   - automation/n8n/   n8n orchestration (Sheets, Gmail, Telegram)
+#   - chroma            ChromaDB vector store (persistent)
+#
+# Reference: PRD Section 18, Backend Blueprint Section 4
+# =============================================================================
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  # --- Backend: FastAPI Application -------------------------------------------
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: ../../docker/backend/Dockerfile
+    image: tasc-backend:${TASC_VERSION:-latest}
+    container_name: tasc-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=${APP_ENV:-local}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LLM_CHAT_MODEL=${LLM_CHAT_MODEL:-gpt-4.1-mini}
+      - LLM_EMBEDDING_MODEL=${LLM_EMBEDDING_MODEL:-text-embedding-3-small}
+      - CHROMA_MODE=http
+      - CHROMA_HTTP_URL=http://chroma:8000
+      - CHROMA_COLLECTION=trizen_knowledge
+      - SESSION_STORE=file
+      - SESSION_STORE_PATH=/app/data/sessions
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/tasc}
+      - N8N_SHARED_SECRET=${N8N_SHARED_SECRET:-}
+      - N8N_SIGNING_SECRET=${N8N_SIGNING_SECRET:-}
+      - N8N_ENABLED=${N8N_ENABLED:-true}
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - backend_data:/app/data
+      - ./apps/backend:/app:delegated
+    depends_on:
+      chroma:
+        condition: service_healthy
+    networks:
+      - tasc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # --- Frontend: Next.js 15 App Router ----------------------------------------
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: ../../docker/frontend/Dockerfile
+    image: tasc-frontend:${TASC_VERSION:-latest}
+    container_name: tasc-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+    volumes:
+      - ./apps/frontend:/app:delegated
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - tasc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # --- Vector Store: ChromaDB -------------------------------------------------
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: tasc-chroma
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=${CHROMA_TELEMETRY:-FALSE}
+    networks:
+      - tasc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # --- Orchestration: n8n ------------------------------------------------------
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: tasc-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_METRICS=false
+      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_SECURE_COOKIE=false
+      - TASC_SHARED_SECRET=${N8N_SHARED_SECRET:-}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./automation/n8n/workflows:/home/node/.n8n/workflows:ro
+    networks:
+      - tasc-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  chroma_data:
+    driver: local
+  backend_data:
+    driver: local
+  n8n_data:
+    driver: local
+
+networks:
+  tasc-network:
+    name: tasc-network
+    driver: bridge

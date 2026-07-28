@@ -1,0 +1,19 @@
+# System Messages Copy
+# Visitor-safe messages for system states
+
+messages:
+  provider_unavailable: >
+    Something went wrong on my end. Your message is still here,
+    try again?
+
+  retrieval_unavailable: >
+    I cannot look up that information right now. A consultant can help.
+
+  content_blocked: >
+    I'm here to discuss business challenges. Let me know how I can help.
+
+  session_expired: >
+    This session has ended. Start a new consultation to continue.
+
+  turn_timeout: >
+    The response took too long. Please try again.

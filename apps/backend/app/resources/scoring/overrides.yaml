@@ -1,0 +1,40 @@
+# Scoring Override Rules
+# Reference: PRD Section 14.4
+
+overrides:
+  - id: OV-01
+    description: "Anti-persona detected"
+    condition: "anti_persona detected"
+    effect: "force_band not_a_lead"
+    suppress_automation: true
+
+  - id: OV-02
+    description: "Explicit human request"
+    condition: "visitor explicitly asked for a human"
+    effect: "min_band qualified"
+    force_telegram: true
+
+  - id: OV-03
+    description: "No contact captured"
+    condition: "no valid email with consent"
+    effect: "cap_band warm"
+
+  - id: OV-04
+    description: "Low budget, exploring only"
+    condition: "budget under_5k AND timeline exploring"
+    effect: "cap_band warm"
+
+  - id: OV-05
+    description: "Fewer than 2 visitor turns"
+    condition: "visitor_turn_count < 2"
+    effect: "force_band cold"
+
+  - id: OV-06
+    description: "Enterprise decision maker"
+    condition: "business_size 1000+ AND decision_role decision_maker"
+    effect: "min_band qualified"
+
+  - id: OV-07
+    description: "Abandonment with contact"
+    condition: "abandoned with >= 3 turns and contact present"
+    effect: "flag partial, compute band normally"

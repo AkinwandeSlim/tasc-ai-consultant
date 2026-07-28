@@ -1,0 +1,22 @@
+# Scoring Weights Configuration
+# Reference: PRD Section 14.2
+
+components:
+  need_clarity:
+    max: 25
+    description: "Number and specificity of pain points mapped to service codes"
+  fit:
+    max: 20
+    description: "Alignment between pain points and Trizen catalogue, plus industry match"
+  urgency:
+    max: 15
+    description: "Timeline slot"
+  budget:
+    max: 15
+    description: "Budget band slot"
+  authority:
+    max: 10
+    description: "Decision role slot"
+  engagement:
+    max: 15
+    description: "Conversation depth, question quality, and responsiveness"

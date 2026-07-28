@@ -1,0 +1,30 @@
+# Prompt template manifest
+# Version: 1.0.0
+# Each entry maps a template_id to a file path and version.
+
+version: "1.0.0"
+templates:
+  identity:
+    path: "identity/nova.v1.md"
+    version: "1.0.0"
+  policy_conversation:
+    path: "policy/conversation.v1.md"
+    version: "1.0.0"
+  policy_grounding:
+    path: "policy/grounding.v1.md"
+    version: "1.0.0"
+  task_respond:
+    path: "task/respond.v1.md"
+    version: "1.0.0"
+  task_classify_intent:
+    path: "task/classify_intent.v1.md"
+    version: "1.0.0"
+  task_extract_slots:
+    path: "task/extract_slots.v1.md"
+    version: "1.0.0"
+  task_write_rationale:
+    path: "task/write_rationale.v1.md"
+    version: "1.0.0"
+  task_executive_summary:
+    path: "task/executive_summary.v1.md"
+    version: "1.0.0"

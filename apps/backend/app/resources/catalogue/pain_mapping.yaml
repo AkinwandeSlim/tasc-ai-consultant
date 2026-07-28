@@ -1,0 +1,75 @@
+# Pain Point to Service Mapping
+# Reference: PRD Section 15.2
+
+mappings:
+  - pain: manual_repetitive_processes
+    description: "Manual repetitive processes, data entry, copy-paste between tools"
+    primary: SVC-AIA
+    secondary: SVC-INT
+    base_weight: 1.0
+
+  - pain: high_volume_triage
+    description: "High-volume email, ticket, or enquiry triage"
+    primary: SVC-AIA
+    secondary: SVC-DAT
+    base_weight: 1.0
+
+  - pain: disconnected_tools
+    description: "Tools that do not talk to each other, duplicate entry"
+    primary: SVC-INT
+    secondary: SVC-AIA
+    base_weight: 1.0
+
+  - pain: manual_reporting
+    description: "Reporting is manual, data trapped in spreadsheets"
+    primary: SVC-DAT
+    secondary: SVC-INT
+    base_weight: 1.0
+
+  - pain: no_single_source_of_truth
+    description: "No reliable single source of truth"
+    primary: SVC-DAT
+    secondary: SVC-INT
+    base_weight: 0.9
+
+  - pain: outdated_website
+    description: "Outdated website, poor conversion, no digital product"
+    primary: SVC-WEB
+    secondary: SVC-CON
+    base_weight: 1.0
+
+  - pain: customer_portal_needed
+    description: "Customer-facing portal or app needed"
+    primary: SVC-WEB
+    secondary: SVC-INT
+    base_weight: 1.0
+
+  - pain: fragile_deployments
+    description: "Deployments are fragile, environments unreliable, cloud cost pain"
+    primary: SVC-CLD
+    secondary: SVC-CON
+    base_weight: 1.0
+
+  - pain: scaling_problems
+    description: "Scaling problems under load"
+    primary: SVC-CLD
+    secondary: SVC-WEB
+    base_weight: 0.9
+
+  - pain: no_roadmap
+    description: "No roadmap, unclear priorities, build versus buy"
+    primary: SVC-CON
+    secondary: SVC-AIA
+    base_weight: 0.8
+
+  - pain: wants_ai_no_use_case
+    description: "Wants AI but has no defined use case"
+    primary: SVC-CON
+    secondary: SVC-AIA
+    base_weight: 0.9
+
+  - pain: compliance_gaps
+    description: "Compliance, audit trail, or process documentation gaps"
+    primary: SVC-CON
+    secondary: SVC-DAT
+    base_weight: 0.7

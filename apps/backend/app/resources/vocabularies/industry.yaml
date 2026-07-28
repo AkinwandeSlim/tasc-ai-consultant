@@ -1,0 +1,39 @@
+# Industry Controlled Vocabulary
+# Reference: PRD Section 12.5
+
+industries:
+  - value: logistics
+    label: Logistics
+    aliases: ["freight", "supply chain", "transportation", "shipping", "courier"]
+
+  - value: fintech
+    label: Financial Technology
+    aliases: ["financial services", "banking", "payments", "insurance", "fin tech"]
+
+  - value: healthcare
+    label: Healthcare
+    aliases: ["medical", "health", "hospital", "clinic", "health tech"]
+
+  - value: retail
+    label: Retail
+    aliases: ["ecommerce", "e-commerce", "online store", "wholesale", "brick and mortar"]
+
+  - value: manufacturing
+    label: Manufacturing
+    aliases: ["production", "factory", "industrial", "make"]
+
+  - value: professional_services
+    label: Professional Services
+    aliases: ["consulting", "legal", "accounting", "agency", "professional svcs"]
+
+  - value: education
+    label: Education
+    aliases: ["edtech", "school", "university", "training", "e-learning"]
+
+  - value: real_estate
+    label: Real Estate
+    aliases: ["property", "reality", "housing", "commercial property"]
+
+  - value: other
+    label: Other
+    aliases: []
