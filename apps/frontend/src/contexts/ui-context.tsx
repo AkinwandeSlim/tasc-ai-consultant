@@ -10,7 +10,7 @@ import {
 
 interface UIContextValue {
   isMobilePanelOpen: boolean;
-  setMobilePanelOpen: (v: boolean) => void;
+  setMobilePanelOpen: (_v: boolean) => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   reducedMotion: boolean;
@@ -18,7 +18,7 @@ interface UIContextValue {
 
 const UIContext = createContext<UIContextValue>({
   isMobilePanelOpen: false,
-  setMobilePanelOpen: () => {},
+  setMobilePanelOpen: (_v: boolean) => {},
   isDarkMode: false,
   toggleDarkMode: () => {},
   reducedMotion: false,

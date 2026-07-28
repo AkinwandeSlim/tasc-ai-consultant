@@ -7,38 +7,28 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { SSEEvent } from "@/types/events";
-
-interface Message {
-  id: string;
-  role: "visitor" | "assistant";
-  content: string;
-  status: "pending" | "streaming" | "complete" | "error";
-  createdAt: string;
-}
+import type { ConsultationMessage } from "@/types/events";
 
 interface ConversationContextValue {
-  messages: Message[];
-  addMessage: (msg: Message) => void;
-  updateLastAssistant: (content: string) => void;
-  setMessageStatus: (id: string, status: Message["status"]) => void;
-  currentTurnIndex: number;
-  setCurrentTurnIndex: (idx: number) => void;
-  isStreaming: boolean;
-  setIsStreaming: (v: boolean) => void;
+  messages: ConsultationMessage[];
+  addMessage: (_msg: ConsultationMessage) => void;
+  updateLastAssistant: (_content: string) => void;
+  setMessageStatus: (_id: string, _status: ConsultationMessage["status"]) => void;
+  hasMessages: boolean;
   clearMessages: () => void;
+  isStreaming: boolean;
+  setIsStreaming: (_v: boolean) => void;
 }
 
 const ConversationContext = createContext<ConversationContextValue>({
   messages: [],
-  addMessage: () => {},
-  updateLastAssistant: () => {},
-  setMessageStatus: () => {},
-  currentTurnIndex: 0,
-  setCurrentTurnIndex: () => {},
-  isStreaming: false,
-  setIsStreaming: () => {},
+  addMessage: (_msg: ConsultationMessage) => {},
+  updateLastAssistant: (_content: string) => {},
+  setMessageStatus: (_id: string, _status: ConsultationMessage["status"]) => {},
+  hasMessages: false,
   clearMessages: () => {},
+  isStreaming: false,
+  setIsStreaming: (_v: boolean) => {},
 });
 
 export function useConversation() {
@@ -46,11 +36,10 @@ export function useConversation() {
 }
 
 export function ConversationProvider({ children }: { children: ReactNode }) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [currentTurnIndex, setCurrentTurnIndex] = useState(0);
+  const [messages, setMessages] = useState<ConsultationMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
 
-  const addMessage = useCallback((msg: Message) => {
+  const addMessage = useCallback((msg: ConsultationMessage) => {
     setMessages((prev) => [...prev, msg]);
   }, []);
 
@@ -65,19 +54,20 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setMessageStatus = useCallback(
-    (id: string, status: Message["status"]) => {
+    (id: string, status: ConsultationMessage["status"]) => {
       setMessages((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, status } : m))
+        prev.map((m) => (m.id === id ? { ...m, status } : m)),
       );
     },
-    []
+    [],
   );
 
   const clearMessages = useCallback(() => {
     setMessages([]);
-    setCurrentTurnIndex(0);
     setIsStreaming(false);
   }, []);
+
+  const hasMessages = messages.length > 0;
 
   return (
     <ConversationContext.Provider
@@ -86,11 +76,10 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
         addMessage,
         updateLastAssistant,
         setMessageStatus,
-        currentTurnIndex,
-        setCurrentTurnIndex,
+        hasMessages,
+        clearMessages,
         isStreaming,
         setIsStreaming,
-        clearMessages,
       }}
     >
       {children}

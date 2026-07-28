@@ -7,19 +7,19 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { AnalysisSnapshot } from "@/types/api";
+import type { AnalysisSnapshotEvent as AnalysisSnapshot } from "@/types/events";
 
 interface AnalysisContextValue {
   snapshot: AnalysisSnapshot | null;
   previousSnapshot: AnalysisSnapshot | null;
-  replaceSnapshot: (snapshot: AnalysisSnapshot) => void;
+  replaceSnapshot: (_snapshot: AnalysisSnapshot) => void;
   clearSnapshot: () => void;
 }
 
 const AnalysisContext = createContext<AnalysisContextValue>({
   snapshot: null,
   previousSnapshot: null,
-  replaceSnapshot: () => {},
+  replaceSnapshot: (_snapshot: AnalysisSnapshot) => {},
   clearSnapshot: () => {},
 });
 

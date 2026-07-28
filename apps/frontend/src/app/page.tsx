@@ -1,31 +1,34 @@
-import Link from "next/link";
+"use client";
+
+import { LandingHero } from "@/components/landing/landing-hero";
+import { ConsultationFeature } from "@/features/consultation/components/consultation-feature";
+import { useHealthCheck } from "@/hooks/use-health-check";
+import { useConsultation } from "@/hooks/use-consultation";
+import { useSession } from "@/contexts/session-context";
 
 export default function HomePage() {
+  const { health, isConnected } = useHealthCheck();
+  const consultation = useConsultation();
+  const session = useSession();
+  const hasSession = session.sessionId !== null;
+
+  if (hasSession) {
+    return (
+      <ConsultationFeature
+        consultation={consultation}
+        health={health}
+        isConnected={isConnected}
+      />
+    );
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4">
-      <div className="text-center max-w-lg">
-        <h1 className="text-heading-lg font-semibold mb-3">
-          Trizen AI Solutions Consultant
-        </h1>
-        <p className="text-body text-muted-foreground mb-8">
-          Talk to Nova and find out how Trizen can help with your business
-          challenges — from AI automation to cloud infrastructure.
-        </p>
-        <Link
-          href="/consultation"
-          className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-body font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-        >
-          Start a consultation
-        </Link>
-        <div className="mt-6">
-          <Link
-            href="/about"
-            className="text-body-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-          >
-            About Trizen
-          </Link>
-        </div>
-      </div>
-    </main>
+    <LandingHero
+      isConnected={isConnected}
+      isSimulationMode={health.simulationMode}
+      backendVersion={health.version}
+      onStart={consultation.startConsultation}
+      isStarting={consultation.isStarting}
+    />
   );
 }

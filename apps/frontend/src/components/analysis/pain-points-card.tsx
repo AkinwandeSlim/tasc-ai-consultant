@@ -1,11 +1,11 @@
 "use client";
 
-import type { PainPoint } from "@/types/api";
+import type { SSEMappedPainPoint } from "@/types/events";
 import { cn } from "@/utils/cn";
 import { truncate } from "@/lib/formatting";
 
 interface PainPointsCardProps {
-  painPoints: PainPoint[];
+  painPoints: SSEMappedPainPoint[];
 }
 
 export function PainPointsCard({ painPoints }: PainPointsCardProps) {

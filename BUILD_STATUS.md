@@ -15,6 +15,7 @@
 | **G5 — Sprint 2A: AI Domain Foundation** | ✅ **COMPLETE** | Conversation domain, business domain, lead qualification models, recommendation models, prompt registry, state definitions, simulation framework, configuration, exceptions, tests |
 | **G6 — Sprint 3: Consultation Engine** | ✅ **COMPLETE** | Rule-based extraction, deterministic qualification, recommendation engine, conversation services, consultation orchestrator, simulation scenarios, response contract, 140 unit tests |
 | **G7 — Sprint 4: API Integration Layer** | ✅ **COMPLETE** | FastAPI REST endpoints, in-memory session store, request/response DTOs, correlation middleware, error handling, health/demo endpoints, 32 API tests |
+| **G8 — Sprint 5: Enterprise Frontend** | ✅ **COMPLETE** | Landing hero, dashboard layout, conversation workspace, AI thinking panel, 8-module analysis panel, responsive design, backend API integration |
 
 ## What Has Been Created
 
@@ -96,14 +97,23 @@
 - [x] `postcss.config.js` — PostCSS with Tailwind
 - [x] `vitest.config.ts` — test configuration
 - [x] `src/app/` — all routes (layout, home, consultation, session, about, error, not-found)
-- [x] `src/providers/` — AppProvider, ThemeProvider
-- [x] `src/contexts/` — session, conversation, analysis, UI contexts
-- [x] `src/services/` — API client, session service, consultation service, SSE parser
-- [x] `src/types/` — API DTOs, SSE event types
+- [x] `src/providers/` — AppProvider, ThemeProvider, all context providers wired
+- [x] `src/contexts/` — session, conversation, analysis, UI contexts (all wired in AppProviders)
+- [x] `src/services/` — API client, session service, consultation service, stream parser (updated for backend API)
+- [x] `src/types/` — API DTOs, SSE event types (reconciled with backend contracts)
 - [x] `src/lib/` — config, constants, formatting utilities
 - [x] `src/utils/` — className helper, assertNever
-- [x] `src/components/` — header, lead status, lead score, pain points, recommendations, progress, qualification cards
-- [x] `src/features/` — consultation feature composition, copy catalogue
+- [x] `src/components/layout/` — Header with connection status, simulation badge, phase indicator
+- [x] `src/components/landing/` — LandingHero premium enterprise landing screen
+- [x] `src/components/conversation/` — ConversationWindow, ChatMessage, ChatInput, ThinkingPanel, TypingIndicator
+- [x] `src/components/analysis/` — 8 analysis panel cards (LeadStatus, LeadScore, BusinessProfile, PainPoints, RecommendedServices, ConversationProgress, QualificationStatus)
+- [x] `src/components/simulation/` — SimulationCard
+- [x] `src/hooks/` — useHealthCheck, useConsultation, useThinkingAnimation
+- [x] `src/features/consultation/` — ConsultationFeature (full composition), copy catalogue
+- [x] Landing-to-dashboard flow with premium enterprise hero
+- [x] AI Thinking Panel with animated step progression
+- [x] Responsive: desktop (two-panel), tablet (drawer), mobile (floating score toggle)
+- [x] Light/dark mode via CSS custom properties
 - [x] CSS design tokens system (light + dark mode)
 
 ### Automation & Docker
@@ -114,27 +124,28 @@
 
 ## What Has NOT Been Implemented (by design)
 
-Per the implementation brief, the following are intentionally **not implemented**:
-- Chat UI business logic
-- AI model integration (OpenAI, embeddings)
-- RAG / ChromaDB integration
-- OpenAI provider integration
-- LLM-based extraction (intent/entity)
+The following are intentionally **not implemented** in this sprint:
+- OpenAI / LLM integration (in Sprint 6 scope)
+- RAG / ChromaDB integration (in Sprint 6 scope)
+- SSE streaming (backend not wired for SSE in Sprint 5 scope)
 - Authentication / authorisation
 - Persistent database (PostgreSQL, etc.)
-- Streaming / SSE endpoints
-- Frontend components
 - n8n workflow definitions and dispatcher integration
+- Admin dashboard
+- Analytics Dashboard
+- Multi-user support / role management
+- Unit tests for frontend (pending setup of test infrastructure)
 
 ## Next Steps
 
-### Sprint 5 — AI Integration & Advanced Services
+### Sprint 6 — AI Integration & Streaming
 1. **AI**: Integrate OpenAI chat and embedding providers via provider protocol
 2. **RAG**: Implement ChromaDB adapter, chunking, embedding pipeline, retrieval service
-3. **Advanced Extraction**: LLM-based intent classification, structured slot extraction with repair
-4. **Scoring**: Wire configurable weights from resource files into scoring engine
-5. **Recommendation**: LLM-based rationale generation instead of templates
-6. **Summary**: Implement executive summary generation
-7. **Frontend**: Implement SSE streaming, conversation UI, session management
+3. **SSE Streaming**: Wire backend SSE events into frontend ThinkingPanel and real-time analysis updates
+4. **Advanced Extraction**: LLM-based intent classification, structured slot extraction with repair
+5. **Scoring**: Wire configurable weights from resource files into scoring engine
+6. **Recommendation**: LLM-based rationale generation instead of templates
+7. **Summary**: Implement executive summary generation
 8. **Automation**: Define n8n workflows for Sheets, Gmail, Telegram
 9. **Testing**: Integration, contract, and evaluation tests
+10. **Frontend tests**: Component and integration tests for the new UI

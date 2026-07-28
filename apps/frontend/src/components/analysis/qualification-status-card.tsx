@@ -1,16 +1,13 @@
 "use client";
 
-import type { QualificationStatus } from "@/types/api";
+import type { QualificationStatusDTO } from "@/types/events";
 import { cn } from "@/utils/cn";
 
 interface QualificationStatusCardProps {
-  status: QualificationStatus;
+  status: QualificationStatusDTO;
 }
 
-const CRITERIA_LABELS: Record<
-  keyof QualificationStatus,
-  string
-> = {
+const CRITERIA_LABELS: Record<keyof QualificationStatusDTO, string> = {
   business_context_understood: "Business context understood",
   challenges_identified: "Challenges identified",
   solution_matched: "Solution matched",
@@ -28,12 +25,11 @@ export function QualificationStatusCard({
         Qualification Status
       </p>
       <ul className="space-y-2">
-        {(Object.keys(CRITERIA_LABELS) as Array<keyof QualificationStatus>).map(
+        {(Object.keys(CRITERIA_LABELS) as Array<keyof QualificationStatusDTO>).map(
           (key) => {
             const value = status[key];
             return (
               <li key={key} className="flex items-center gap-2 text-body-sm">
-                {/* Status icon */}
                 <span
                   className={cn(
                     "size-4 rounded-full flex items-center justify-center text-xs shrink-0",
@@ -44,11 +40,7 @@ export function QualificationStatusCard({
                 >
                   {value === "met" ? "✓" : value === "declined" ? "—" : "○"}
                 </span>
-                <span
-                  className={cn(
-                    value === "declined" && "text-muted-foreground"
-                  )}
-                >
+                <span className={cn(value === "declined" && "text-muted-foreground")}>
                   {CRITERIA_LABELS[key]}
                 </span>
               </li>

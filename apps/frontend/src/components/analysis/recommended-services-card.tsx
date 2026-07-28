@@ -1,10 +1,10 @@
 "use client";
 
-import type { RecommendedService } from "@/types/api";
+import type { SSEMappedService } from "@/types/events";
 import { cn } from "@/utils/cn";
 
 interface RecommendedServicesCardProps {
-  services: RecommendedService[];
+  services: SSEMappedService[];
 }
 
 export function RecommendedServicesCard({

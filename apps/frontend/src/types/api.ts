@@ -1,84 +1,165 @@
-/** API DTO types — generated from backend OpenAPI schema. */
+/**
+ * API DTO types — reconciled with backend /api/v1 contracts.
+ *
+ * References: apps/backend/app/api/v1/chat.py
+ */
 
-export interface CreateSessionResponse {
+// ── Health ──────────────────────────────────────────────────────────────
+
+export interface HealthResponse {
+  status: string;
+  version: string;
+  simulation_mode: boolean;
+  timestamp: string;
+}
+
+export interface LivenessResponse {
+  status: string;
+}
+
+// ── Consultation Start ──────────────────────────────────────────────────
+
+export interface StartConsultationResponse {
   session_id: string;
-  created_at: string;
-  expires_at: string;
+  greeting: string;
+  conversation_phase: string;
+  business_profile: BusinessProfileDTO;
+  lead_score: LeadScoreDTO;
+  recommendations: RecommendationItemDTO[];
+  completion_percentage: number;
+  next_question: string | null;
+  conversation_finished: boolean;
+}
+
+// ── Send Message ────────────────────────────────────────────────────────
+
+export interface MessageResponse {
+  assistant_message: string;
+  conversation_phase: string;
+  business_profile: BusinessProfileDTO;
+  lead_score: LeadScoreDTO;
+  recommendations: RecommendationItemDTO[];
+  completion_percentage: number;
+  next_question: string | null;
+  conversation_finished: boolean;
+}
+
+// ── Session Snapshot ────────────────────────────────────────────────────
+
+export interface SessionSnapshotResponse {
+  session_id: string;
   phase: string;
-  greeting: GreetingMessage;
-  analysis: AnalysisSnapshot;
-  limits: SessionLimits;
-}
-
-export interface GreetingMessage {
-  message_id: string;
-  role: string;
-  content: string;
-  created_at: string;
-}
-
-export interface AnalysisSnapshot {
+  status: string;
   turn_index: number;
-  lead_status: string;
-  lead_score: number | null;
-  lead_score_delta: number | null;
-  next_score_contributor: string | null;
-  industry: SlotValue | null;
-  business_size: SlotValue | null;
-  pain_points: PainPoint[];
-  recommended_services: RecommendedService[];
-  conversation_progress: ConversationProgress;
-  qualification_status: QualificationStatus;
+  visitor_turn_count: number;
+  business_profile: BusinessProfileDTO;
+  lead_score: LeadScoreDTO;
+  recommendations: RecommendationItemDTO[];
+  completion_percentage: number;
+  last_question: string | null;
+  conversation_finished: boolean;
+  messages: RawMessage[];
 }
 
-export interface SlotValue {
-  value: string | null;
-  label: string | null;
-  raw: string | null;
-  confidence: number;
+export interface RawMessage {
+  message_id?: string;
+  role?: string;
+  content?: string;
+  created_at?: string;
 }
 
-export interface PainPoint {
-  id: string;
+// ── Demo Scenarios ──────────────────────────────────────────────────────
+
+export interface ScenarioItemDTO {
+  scenario_id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  turn_count: number;
+  expected_band: string;
+  expected_score: number;
+}
+
+export interface ListScenariosResponse {
+  scenarios: ScenarioItemDTO[];
+  count: number;
+  simulation_enabled: boolean;
+}
+
+// ── Domain DTOs ─────────────────────────────────────────────────────────
+
+export interface BusinessProfileDTO {
+  industry: string | null;
+  company_size: string | null;
+  pain_points: PainPointDTO[];
+  current_tools: string[];
+  goals: string[];
+  timeline: string | null;
+  budget_band: string | null;
+  decision_authority: string | null;
+  has_contact: boolean;
+  core_slots_filled: number;
+  commercial_slots_filled: number;
+  total_slots_filled: number;
+}
+
+export interface PainPointDTO {
   label: string;
-  service_codes: string[];
-  quantified: boolean;
-  turn_index: number;
+  source_turn: number;
 }
 
-export interface RecommendedService {
+export interface LeadScoreDTO {
+  score: number;
+  band: string;
+  confidence: number;
+  next_contributor: string | null;
+  disqualified: boolean;
+  partial: boolean;
+  justification: string;
+}
+
+export interface RecommendationItemDTO {
   service_code: string;
   name: string;
   rank: number;
   confidence: number;
+  confidence_label: string;
+  category: string;
+  priority: string;
   rationale: string;
   typical_engagement: string;
 }
 
-export interface ConversationProgress {
-  phase: string;
-  stage_index: number;
-  stage_total: number;
-  slots_filled: number;
-  slots_total: number;
-  percent: number;
+// ── Error ───────────────────────────────────────────────────────────────
+
+export interface ErrorEnvelope {
+  error: {
+    code: string;
+    message: string;
+    correlation_id: string;
+    retryable: boolean;
+    details: Record<string, unknown> | null;
+  };
 }
 
-export interface QualificationStatus {
-  business_context_understood: "met" | "unmet" | "declined";
-  challenges_identified: "met" | "unmet" | "declined";
-  solution_matched: "met" | "unmet" | "declined";
-  timeline_established: "met" | "unmet" | "declined";
-  budget_discussed: "met" | "unmet" | "declined";
-  contact_captured: "met" | "unmet" | "declined";
-}
+// ── Conversation State ──────────────────────────────────────────────────
 
-export interface SessionLimits {
-  message_max_chars: number;
-  session_ttl_minutes: number;
-}
+export const PHASE_LABELS = [
+  "Understanding",
+  "Exploring",
+  "Recommending",
+  "Qualifying",
+  "Wrapping up",
+] as const;
 
-export interface SendMessageRequest {
-  content: string;
-  client_turn_id?: string;
-}
+export type PhaseLabel = (typeof PHASE_LABELS)[number];
+
+export const STATUS_BANDS = [
+  "exploring",
+  "cold",
+  "warm",
+  "qualified",
+  "hot",
+] as const;
+
+export type StatusBand = (typeof STATUS_BANDS)[number];

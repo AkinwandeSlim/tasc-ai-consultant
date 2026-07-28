@@ -1,10 +1,10 @@
 "use client";
 
-import type { ConversationProgress } from "@/types/api";
+import type { ConversationProgressDTO } from "@/types/events";
 import { cn } from "@/utils/cn";
 
 interface ConversationProgressCardProps {
-  progress: ConversationProgress;
+  progress: ConversationProgressDTO;
 }
 
 const STAGE_LABELS = [

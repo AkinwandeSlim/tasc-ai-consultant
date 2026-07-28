@@ -4,11 +4,11 @@ import { API_CONFIG } from "@/lib/api-config";
 
 export class ApiClientError extends Error {
   constructor(
-    public status: number,
-    public code: string,
+    _status: number,
+    _code: string,
     message: string,
-    public retryable: boolean,
-    public correlationId?: string
+    _retryable: boolean,
+    _correlationId?: string
   ) {
     super(message);
     this.name = "ApiClientError";
@@ -17,34 +17,41 @@ export class ApiClientError extends Error {
 
 interface ApiClientConfig {
   baseUrl: string;
+  rootUrl: string;
   timeout: number;
 }
 
 export class ApiClient {
   private config: ApiClientConfig;
-  private correlationId: string;
+  public correlationId: string;
 
   constructor(config?: Partial<ApiClientConfig>) {
     this.config = {
       baseUrl: API_CONFIG.baseUrl,
+      rootUrl: API_CONFIG.rootUrl,
       timeout: API_CONFIG.timeout,
       ...config,
     };
     this.correlationId = crypto.randomUUID();
   }
 
-  async post<T>(path: string, body: unknown): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    options?: { body?: unknown; useRoot?: boolean },
+  ): Promise<T> {
+    const base = options?.useRoot ? this.config.rootUrl : this.config.baseUrl;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
 
     try {
-      const response = await fetch(`${this.config.baseUrl}${path}`, {
-        method: "POST",
+      const response = await fetch(`${base}${path}`, {
+        method,
         headers: {
-          ...API_CONFIG.headers,
+          "Content-Type": "application/json",
           "X-Correlation-Id": this.correlationId,
         },
-        body: JSON.stringify(body),
+        body: options?.body ? JSON.stringify(options.body) : undefined,
         signal: controller.signal,
       });
 
@@ -55,7 +62,7 @@ export class ApiClient {
           error?.error?.code ?? "UNKNOWN",
           error?.error?.message ?? "Request failed",
           error?.error?.retryable ?? false,
-          error?.error?.correlation_id
+          error?.error?.correlation_id,
         );
       }
 
@@ -71,40 +78,12 @@ export class ApiClient {
     }
   }
 
-  async get<T>(path: string): Promise<T> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+  async post<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>("POST", path, { body });
+  }
 
-    try {
-      const response = await fetch(`${this.config.baseUrl}${path}`, {
-        method: "GET",
-        headers: {
-          ...API_CONFIG.headers,
-          "X-Correlation-Id": this.correlationId,
-        },
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new ApiClientError(
-          response.status,
-          error?.error?.code ?? "UNKNOWN",
-          error?.error?.message ?? "Request failed",
-          error?.error?.retryable ?? false
-        );
-      }
-
-      return (await response.json()) as T;
-    } catch (err) {
-      if (err instanceof ApiClientError) throw err;
-      if (err instanceof DOMException && err.name === "AbortError") {
-        throw new ApiClientError(408, "TIMEOUT", "Request timed out", true);
-      }
-      throw new ApiClientError(0, "NETWORK_ERROR", "Network error", true);
-    } finally {
-      clearTimeout(timeoutId);
-    }
+  async get<T>(path: string, opts?: { useRoot?: boolean }): Promise<T> {
+    return this.request<T>("GET", path, opts);
   }
 }
 

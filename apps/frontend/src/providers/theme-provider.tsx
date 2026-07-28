@@ -12,7 +12,7 @@ type Theme = "light" | "dark" | "system";
 
 interface ThemeContextValue {
   theme: Theme;
-  setTheme: (theme: Theme) => void;
+  setTheme: (_theme: Theme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
