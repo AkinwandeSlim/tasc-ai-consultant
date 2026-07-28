@@ -13,6 +13,7 @@
 | **G3 — Docker & CI** | ✅ **COMPLETE** | Docker Compose, backend/frontend Dockerfiles, CI workflow |
 | **G4 — Documentation** | ✅ **COMPLETE** | README.md, BUILD_STATUS.md, CONTRIBUTING.md |
 | **G5 — Sprint 2A: AI Domain Foundation** | ✅ **COMPLETE** | Conversation domain, business domain, lead qualification models, recommendation models, prompt registry, state definitions, simulation framework, configuration, exceptions, tests |
+| **G6 — Sprint 3: Consultation Engine** | ✅ **COMPLETE** | Rule-based extraction, deterministic qualification, recommendation engine, conversation services, consultation orchestrator, simulation scenarios, response contract, 140 unit tests |
 
 ## What Has Been Created
 
@@ -54,6 +55,25 @@
 - [x] **Custom Exceptions** — 18 domain-specific exceptions: ConversationError, PhaseTransitionError, HistoryCompactionError, QualificationError, ScoringError, OverrideEvaluationError, RecommendationError, CandidateGenerationError, RationaleGenerationError, PromptError, PromptNotFoundError, PromptRenderError, ManifestError, KnowledgeError, KnowledgeNotFoundError, ChunkingError, IndexError, SimulationError, ScenarioNotFoundError, SimulationConfigError
 - [x] **Tests** — 123 unit tests covering model serialization, validation, configuration, prompt loading, simulation configuration, conversation state definitions, exception hierarchy
 
+### Sprint 3 — Consultation Engine
+- [x] **Rule-Based Intent Classification** — 12-class intent taxonomy via keyword/pattern matching: describe_problem, company_question, capability_question, pricing_question, timeline_question, objection, request_human, anti_persona, end_conversation, smalltalk, off_topic, answer_question
+- [x] **Rule-Based Slot Extraction** — Deterministic extraction for industry, business size, pain points, current tools, goals, timeline, budget band, decision role using regex patterns and heuristics
+- [x] **Value Normalisation** — Maps free-text to controlled vocabularies for industry, business size, timeline, budget band, decision role with confidence scoring
+- [x] **Slot Merger** — Merge rules per PRD 13.4: confidence-based overwrite protection, list deduplication, declined slot permanence, conflict recording
+- [x] **Deterministic Qualification Engine** — Six scoring components (need_clarity, fit, urgency, budget, authority, engagement) totalling 100 points, band assignment (cold/warm/qualified/hot), 7 override rules (OV-01 to OV-07), qualification confidence calculation
+- [x] **Rule-Based Recommendation Engine** — Pain-to-service candidate generation from catalogue mapping, ranking formula with frequency factor/evidence boost/industry boost/constraint penalty, confidence calculation, withholding logic (FR-43), 3-max enforcement, template rationale writing
+- [x] **Conversation Manager** — Session creation with static greeting, per-turn message processing, slot extraction orchestration, business profile syncing, phase evaluation, response generation, termination handling
+- [x] **Conversation Memory** — Three-tier memory with verbatim window, compaction trigger, token estimation, prompt message assembly
+- [x] **Question Selector** — Deterministic selection using scoring_weight × phase_multiplier × recency_penalty, phase-eligible slot constraints, tie-breaking by slot order (PRD 12.6)
+- [x] **Completion Detection** — Three triggers: explicit end_conversation, criteria_met (capture phase + contact + commercial resolved), abandonment (idle + 3+ turns)
+- [x] **Phase Controller Integration** — Full state machine integration with the existing PhaseController for greeting→discovery→exploration→recommendation→qualification→capture_and_close flow
+- [x] **Consultation Orchestrator** — End-to-end turn pipeline: process_turn coordinates extraction → scoring → recommendations → phase evaluation → snapshot building → completion checking
+- [x] **SSE Event Emitter** — Phase, token, analysis_snapshot, error, and done event construction with full analysis snapshot builder
+- [x] **Pipeline Stage Definitions** — 12 standard stages with parallel groups (intent+extraction), stage types, timeout configs
+- [x] **Simulation Scenarios** — 10 realistic scenarios: Logistics Company, Retail Business, Healthcare Clinic, Manufacturing SME, FinTech Startup, Real Estate Agency, Educational Institution, Professional Services Firm, Fast Track Logistics, Human Request
+- [x] **Response Contract** — ConsultationResponse model with all required fields: assistant_message, conversation_phase, business_profile, lead_score, recommendations, completion_percentage, next_question
+- [x] **Tests** — 140 unit tests covering intent classification, slot extraction, normalisation, merging, phase transitions, scoring components, overrides, recommendation engine, banding, completion detection, memory, conversation manager, orchestrator, simulation scenarios, event emitter, pipeline stages, and end-to-end consultation flow
+
 ### Frontend (`apps/frontend/`)
 - [x] `package.json` — dependencies (Next.js 15, React 19, TanStack Query, etc.)
 - [x] `tsconfig.json` — strict TypeScript configuration
@@ -83,26 +103,25 @@
 Per the implementation brief, the following are intentionally **not implemented**:
 - Chat UI business logic
 - API endpoint handlers (route bodies)
-- AI model integration (OpenAI, embeddings) — Sprint 2B
-- RAG / ChromaDB integration — Sprint 2B
-- Recommendation algorithms — Sprint 2B
-- Lead scoring algorithms — Sprint 2B
-- Intent classification and slot extraction — Sprint 2B
-- Summary generation — Sprint 2B
-- Session persistence — Sprint 2B
-- n8n workflow definitions — Sprint 2B
-- n8n dispatcher integration — Sprint 2B
-- Frontend SSE streaming — Sprint 2B
+- AI model integration (OpenAI, embeddings) — Sprint 4
+- RAG / ChromaDB integration — Sprint 4
+- OpenAI provider integration — Sprint 4
+- Advanced extraction services (LLM-based intent/entity extraction) — Sprint 4
+- Session persistence — Sprint 4
+- n8n workflow definitions — Sprint 4
+- n8n dispatcher integration — Sprint 4
+- Frontend SSE streaming — Sprint 4
 
 ## Next Steps
 
-### Sprint 2B — AI Integration & Business Logic
+### Sprint 4 — AI Integration & API Layer
 1. **Backend**: Implement API route handlers for sessions, messages, consultations
-2. **AI**: Integrate OpenAI chat and embedding providers
+2. **AI**: Integrate OpenAI chat and embedding providers via provider protocol
 3. **RAG**: Implement ChromaDB adapter, chunking, embedding pipeline, retrieval service
-4. **Extraction**: Implement intent classification, slot extraction, normalisation, merging
-5. **Scoring**: Implement deterministic scoring engine with component maths and overrides
-6. **Recommendation**: Implement candidate builder, ranker, rationale generator
-7. **Frontend**: Implement SSE streaming, conversation UI, session management
-8. **Automation**: Define n8n workflows for Sheets, Gmail, Telegram
-9. **Testing**: Integration, contract, and evaluation tests
+4. **Advanced Extraction**: LLM-based intent classification, structured slot extraction with repair
+5. **Scoring**: Wire configurable weights from resource files into scoring engine
+6. **Recommendation**: LLM-based rationale generation instead of templates
+7. **Summary**: Implement executive summary generation
+8. **Frontend**: Implement SSE streaming, conversation UI, session management
+9. **Automation**: Define n8n workflows for Sheets, Gmail, Telegram
+10. **Testing**: Integration, contract, and evaluation tests

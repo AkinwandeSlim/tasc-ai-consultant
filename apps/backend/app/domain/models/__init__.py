@@ -14,6 +14,7 @@ from app.domain.models.conversation import (
     ConversationState,
     SessionStatus,
 )
+from app.domain.models.consultation_response import ConsultationResponse
 from app.domain.models.recommendation import (
     Confidence,
     Priority,
@@ -34,6 +35,7 @@ from app.domain.models.score import (
 )
 
 __all__ = [
+    "ConsultationResponse",
     "ConversationContext",
     "ConversationEvent",
     "ConversationHistory",
