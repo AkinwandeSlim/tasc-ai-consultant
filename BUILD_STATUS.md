@@ -16,7 +16,7 @@
 | **G6 — Sprint 3: Consultation Engine** | ✅ **COMPLETE** | Rule-based extraction, deterministic qualification, recommendation engine, conversation services, consultation orchestrator, simulation scenarios, response contract, 140 unit tests |
 | **G7 — Sprint 4: API Integration Layer** | ✅ **COMPLETE** | FastAPI REST endpoints, in-memory session store, request/response DTOs, correlation middleware, error handling, health/demo endpoints, 32 API tests |
 | **G8 — Sprint 5: Enterprise Frontend** | ✅ **COMPLETE** | Landing hero, dashboard layout, conversation workspace, AI thinking panel, 8-module analysis panel, responsive design, backend API integration |
-| **G9 — CI Stabilization** | ✅ **COMPLETE** | Ruff install fix, vitest smoke test, zod dedup, mypy config, all CI checks passing |
+| **G9 — CI Stabilization** | ✅ **COMPLETE** | Ruff install fix, vitest smoke test, zod dedup, mypy config, integration test fix, all CI checks passing |
 
 ## What Has Been Created
 
