@@ -1,10 +1,11 @@
 """Mock automation gateway — deterministic local consultation processing.
 
-Used when N8N_ENABLED=false. Wraps the existing ConsultationOrchestrator
-so all current frontend functionality continues working without n8n.
+Used when N8N_ENABLED=false. Wraps the local consultation engine
+(ConsultationOrchestrator or LlmConsultationEngine) so all current
+frontend functionality continues working without n8n.
 
-Returns deterministic mock consultation responses that match the
-existing frontend API contract exactly.
+Returns consultation responses that match the existing frontend
+API contract exactly.
 """
 
 from __future__ import annotations
@@ -16,24 +17,28 @@ from app.domain.gateway.automation_gateway import (
     ConsultationRequest,
     ConsultationResult,
 )
-from app.orchestration.orchestrator import ConsultationOrchestrator
 
 logger = logging.getLogger(__name__)
 
 
 class MockAutomationGateway:
-    """Gateway that processes consultations using the local deterministic engine.
+    """Gateway that processes consultations using a local engine.
 
     Used for development and testing when N8N_ENABLED=false.
-    No external calls are made — all processing stays within the
-    existing ConsultationOrchestrator.
+    The engine can be the deterministic ConsultationOrchestrator
+    (default) or the LlmConsultationEngine (when LLM_ENABLED=true).
+    No external calls are made — all processing stays local.
     """
 
     def __init__(
         self,
-        orchestrator: ConsultationOrchestrator | None = None,
+        orchestrator: Any = None,
     ) -> None:
-        self._orchestrator = orchestrator or ConsultationOrchestrator()
+        if orchestrator is None:
+            from app.orchestration.orchestrator import ConsultationOrchestrator
+            self._orchestrator = ConsultationOrchestrator()
+        else:
+            self._orchestrator = orchestrator
 
     async def process_consultation(
         self,

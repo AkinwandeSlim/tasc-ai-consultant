@@ -9,6 +9,7 @@ The lifespan module calls container construction after startup checks pass.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -17,6 +18,8 @@ import httpx
 from app.core.config import Settings
 from app.infrastructure.automation.mock_gateway import MockAutomationGateway
 from app.infrastructure.automation.n8n_gateway import N8nAutomationGateway
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -50,6 +53,7 @@ class Container:
 
     # Orchestration
     orchestrator: Any = field(default=None)
+    llm_engine: Any = field(default=None)
 
 
 def build_container(settings: Settings) -> Container:
@@ -61,7 +65,13 @@ def build_container(settings: Settings) -> Container:
     The automation gateway is selected based on N8N_ENABLED:
       - False: MockAutomationGateway (local deterministic engine)
       - True:  N8nAutomationGateway (forwards to external n8n webhook)
+
+    When LLM_ENABLED=True and N8N_ENABLED=False, the MockAutomationGateway
+    uses LlmConsultationEngine instead of ConsultationOrchestrator, with
+    automatic fallback to the deterministic engine on failure.
     """
+    from app.orchestration.orchestrator import ConsultationOrchestrator
+
     container = Container(settings=settings)
 
     # --- HTTP client for outbound calls ---
@@ -72,6 +82,30 @@ def build_container(settings: Settings) -> Container:
             max_connections=20,
         ),
     )
+
+    # --- Deterministic orchestrator (always needed as fallback) ---
+    deterministic_orchestrator = ConsultationOrchestrator()
+
+    # --- Chat provider (LLM) ---
+    if settings.LLM_ENABLED:
+        from app.infrastructure.providers.registry import create_chat_provider
+
+        chat_provider = create_chat_provider(settings)
+        container.chat_provider = chat_provider
+
+        if chat_provider is not None:
+            from app.orchestration.llm.engine import LlmConsultationEngine
+
+            container.llm_engine = LlmConsultationEngine(
+                chat_provider=chat_provider,
+                deterministic_engine=deterministic_orchestrator,
+            )
+            logger.info("LLM consultation engine created with provider=%s", type(chat_provider).__name__)
+        else:
+            container.llm_engine = None
+            logger.info("LLM_ENABLED=True but no API key — LLM engine disabled, using deterministic")
+    else:
+        container.llm_engine = None
 
     # --- Automation gateway ---
     if settings.N8N_ENABLED:
@@ -87,14 +121,21 @@ def build_container(settings: Settings) -> Container:
             backoff_base_seconds=settings.N8N_BACKOFF_BASE_SECONDS,
         )
     else:
-        container.automation_gateway = MockAutomationGateway()
+        # When LLM_ENABLED, inject LlmConsultationEngine into MockAutomationGateway
+        engine_to_use: Any = deterministic_orchestrator
+        if settings.LLM_ENABLED and container.llm_engine is not None:
+            engine_to_use = container.llm_engine
+            logger.info("MockAutomationGateway using LlmConsultationEngine")
+
+        container.automation_gateway = MockAutomationGateway(
+            orchestrator=engine_to_use,
+        )
 
     # TODO: Construct and wire all remaining dependencies following the blueprint:
-    #   1. Providers (ChatProvider, EmbeddingProvider)
-    #   2. Vector store (ChromaDB adapter)
-    #   3. Prompt registry (load templates)
-    #   4. Repositories (session, payload, deadletter)
-    #   5. Domain services (scoring engine, recommendation engine, etc.)
-    #   6. Orchestrator (composed from domain services)
+    #   1. Vector store (ChromaDB adapter)
+    #   2. Prompt registry (load templates)
+    #   3. Repositories (session, payload, deadletter)
+    #   4. Domain services (scoring engine, recommendation engine, etc.)
+    #   5. Orchestrator (composed from domain services)
 
     return container

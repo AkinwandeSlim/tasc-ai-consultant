@@ -47,8 +47,17 @@ async def run_startup_sequence(app: FastAPI) -> None:
     logger.info("S3: Resources loaded", extra={"ruleset_version": ruleset_version})
 
     # S4: Construct providers
-    # TODO: Construct from registry
-    logger.info("S4: Providers constructed", extra={"provider": settings.LLM_PROVIDER})
+    llm_provider_name = settings.LLM_PROVIDER
+    if settings.LLM_ENABLED:
+        logger.info(
+            "S4: LLM mode enabled — providers constructed via container (provider=%s)",
+            llm_provider_name,
+        )
+    else:
+        logger.info(
+            "S4: LLM mode disabled — using deterministic engine (provider=%s)",
+            llm_provider_name,
+        )
 
     # S5: Open Chroma collection
     # TODO: Open collection

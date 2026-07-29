@@ -77,6 +77,7 @@ class Settings(BaseSettings):
 
     # --- Model Provider ---
     LLM_PROVIDER: LLMProvider = LLMProvider.OPENAI
+    LLM_ENABLED: bool = False
     OPENAI_API_KEY: SecretStr = Field(default="", validate_default=False)
     OPENAI_BASE_URL: str | None = None
     LLM_CHAT_MODEL: str = "gpt-4.1-mini"
