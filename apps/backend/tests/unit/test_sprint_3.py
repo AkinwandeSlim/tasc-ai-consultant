@@ -9,13 +9,9 @@ References: PRD FR-22 to FR-47, FR-30 to FR-36, FR-37 to FR-43
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
-from app.domain.conversation.completion import CompletionDetector, CompletionResult
-from app.domain.conversation.manager import ConversationManager, ProcessedTurn
-from app.domain.conversation.memory import ConversationMemory, MemoryState
+from app.domain.conversation.completion import CompletionDetector
+from app.domain.conversation.manager import ConversationManager
+from app.domain.conversation.memory import ConversationMemory
 from app.domain.conversation.phase_controller import (
     PHASE_DEFINITIONS,
     TRANSITION_RULES,
@@ -24,20 +20,16 @@ from app.domain.conversation.phase_controller import (
 )
 from app.domain.conversation.question_selector import (
     PHASE_ELIGIBLE_SLOTS,
-    PHASE_MULTIPLIERS,
-    SLOT_SCORING_WEIGHTS,
     QuestionSelector,
-    SelectedQuestion,
 )
-from app.domain.extraction.intent_classifier import IntentClassifier, IntentResult
-from app.domain.extraction.merger import MergeResult, SlotMerger
-from app.domain.extraction.normaliser import Normaliser, NormalisedValue
+from app.domain.extraction.intent_classifier import IntentClassifier
+from app.domain.extraction.merger import SlotMerger
+from app.domain.extraction.normaliser import Normaliser
 from app.domain.extraction.slot_extractor import ExtractionResult, SlotExtractor
-from app.domain.models.conversation import ConversationContext, ConversationStage
+from app.domain.models.conversation import ConversationContext
 from app.domain.models.slots import PainPoint, SlotMap, SlotValue
 from app.domain.qualification.banding import band_display_label, score_to_band
 from app.domain.qualification.components import (
-    ComponentResult,
     compute_authority,
     compute_budget,
     compute_engagement,
@@ -45,15 +37,14 @@ from app.domain.qualification.components import (
     compute_need_clarity,
     compute_urgency,
 )
-from app.domain.qualification.overrides import OverrideResult, apply_overrides
+from app.domain.qualification.overrides import apply_overrides
 from app.domain.qualification.scoring_engine import ScoringEngine, ScoringInput
 from app.domain.recommendation.candidate_builder import Candidate, CandidateBuilder
 from app.domain.recommendation.engine import RecommendationEngine, RecommendationInput
 from app.domain.recommendation.ranker import RankedService, Ranker
-from app.domain.recommendation.rationale import RationaleResult, RationaleWriter
+from app.domain.recommendation.rationale import RationaleWriter
 from app.domain.simulation.framework import (
     DefaultScenarioProvider,
-    Scenario,
     ScenarioRegistry,
     SimulationConfig,
     SimulationFramework,
@@ -65,15 +56,11 @@ from app.domain.simulation.scenarios import (
     LOGISTICS_SCENARIO,
     register_default_scenarios,
 )
-from app.orchestration.event_emitter import AnalysisSnapshot, EventEmitter, SSEEvent
+from app.orchestration.event_emitter import EventEmitter
 from app.orchestration.orchestrator import ConsultationOrchestrator, OrchestrationResult
 from app.orchestration.pipeline import (
-    PipelineContext,
-    StageDefinition,
-    StageType,
     STANDARD_STAGES,
 )
-
 
 # =============================================================================
 # Intent Classification Tests

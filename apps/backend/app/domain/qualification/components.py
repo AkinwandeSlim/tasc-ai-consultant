@@ -11,7 +11,7 @@ References: PRD Section 14.2, AI Blueprint Section 5
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 

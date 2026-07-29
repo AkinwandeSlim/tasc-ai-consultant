@@ -81,6 +81,10 @@ class PromptLoader(Protocol):
         """Load prompt content from the given path."""
         ...
 
+    def exists(self, path: str) -> bool:
+        """Check if a prompt template exists at the given path."""
+        ...
+
 
 class FilePromptLoader:
     """Loads prompt templates from the filesystem."""
@@ -96,7 +100,7 @@ class FilePromptLoader:
         return full_path.read_text(encoding="utf-8")
 
     def exists(self, path: str) -> bool:
-        """Check whether a prompt template file exists."""
+        """Check if a prompt template file exists."""
         return (self.base_path / path).exists()
 
 

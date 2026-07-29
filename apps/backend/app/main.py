@@ -4,20 +4,20 @@ Wires middleware, mounts routers, and attaches lifespan handlers.
 No business logic lives here — this is pure composition.
 """
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from app.core.config import get_settings
-from app.core.logging import configure_logging
-from app.api.router import api_router
 from app.api.errors import register_exception_handlers
 from app.api.middleware.correlation import CorrelationIdMiddleware
-from app.lifespan import run_startup_sequence, run_shutdown_sequence
+from app.api.router import api_router
+from app.core.config import get_settings
+from app.core.logging import configure_logging
+from app.lifespan import run_shutdown_sequence, run_startup_sequence
 
 
 @asynccontextmanager

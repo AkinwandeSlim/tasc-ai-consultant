@@ -10,8 +10,7 @@ References: PRD Section 15.4, AI Blueprint Section 6.4
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 
 @dataclass

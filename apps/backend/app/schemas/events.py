@@ -6,7 +6,7 @@ Each event type maps to a Pydantic model. Events are serialised as
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class PhaseEvent(BaseModel):

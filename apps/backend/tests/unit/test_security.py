@@ -1,6 +1,6 @@
 """Tests for security utilities."""
 
-from app.core.security import sign_payload, verify_signature, constant_time_equal
+from app.core.security import constant_time_equal, sign_payload, verify_signature
 
 
 class TestSigning:

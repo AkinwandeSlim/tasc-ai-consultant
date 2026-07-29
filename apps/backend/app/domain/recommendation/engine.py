@@ -9,14 +9,13 @@ References: PRD FR-37 to FR-43, PRD Section 15, AI Blueprint Section 6
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from app.domain.models.recommendation import (
     Recommendation,
     RecommendationSummary,
 )
 from app.domain.recommendation.candidate_builder import CandidateBuilder
-from app.domain.recommendation.ranker import Ranker, RankedService
+from app.domain.recommendation.ranker import Ranker
 from app.domain.recommendation.rationale import RationaleWriter
 
 

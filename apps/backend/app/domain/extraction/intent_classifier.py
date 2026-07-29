@@ -9,7 +9,7 @@ References: PRD 12.4, AI Blueprint Section 1.4
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

@@ -9,26 +9,17 @@ References: PRD Section 13, AI Blueprint Section 12, Backend Blueprint Section 7
 
 from __future__ import annotations
 
-import datetime
 import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.domain.conversation.completion import CompletionDetector
 from app.domain.conversation.manager import ConversationManager, ProcessedTurn
-from app.domain.conversation.memory import ConversationMemory
 from app.domain.conversation.phase_controller import PhaseController
-from app.domain.conversation.question_selector import QuestionSelector
-from app.domain.extraction.intent_classifier import IntentClassifier
-from app.domain.extraction.merger import SlotMerger
-from app.domain.extraction.normaliser import Normaliser
-from app.domain.extraction.slot_extractor import SlotExtractor
-from app.domain.models.conversation import ConversationContext, ConversationState
+from app.domain.models.conversation import ConversationContext
 from app.domain.models.slots import SlotMap
 from app.domain.qualification.scoring_engine import ScoringEngine, ScoringInput
 from app.domain.recommendation.engine import RecommendationEngine, RecommendationInput
 from app.orchestration.event_emitter import EventEmitter
-from app.orchestration.pipeline import PipelineContext, StageDefinition, StageType
 
 logger = logging.getLogger(__name__)
 
@@ -104,9 +95,9 @@ class ConsultationOrchestrator:
         """
         turn_index = session_state.get("turn_index", 0) + 1
         current_phase = session_state.get("phase", "greeting")
-        slot_map = session_state.get("slot_map", SlotMap())
+        session_state.get("slot_map", SlotMap())
         business_profile = session_state.get("business_profile", {})
-        questions_asked = session_state.get("questions_asked", [])
+        session_state.get("questions_asked", [])
 
         # Build context
         context = ConversationContext(

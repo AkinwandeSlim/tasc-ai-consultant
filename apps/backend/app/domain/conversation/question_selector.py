@@ -11,9 +11,8 @@ References: PRD 12.6, PRD FR-26, FR-27
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
-
 
 # Slot-specific question templates
 QUESTION_TEMPLATES: dict[str, str] = {

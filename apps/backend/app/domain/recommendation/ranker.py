@@ -8,7 +8,6 @@ References: PRD Section 15.3, AI Blueprint Section 6.2
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 
 from app.domain.recommendation.candidate_builder import Candidate

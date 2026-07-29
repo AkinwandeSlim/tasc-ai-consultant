@@ -12,8 +12,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.domain.models.slots import PainPoint, SlotValue
-
 
 @dataclass
 class ExtractionResult:
@@ -43,7 +41,7 @@ _INDUSTRY_PATTERNS: list[tuple[re.Pattern, str]] = [
 # --- Business size patterns ---
 
 _SIZE_PATTERNS: list[tuple[re.Pattern, str, str]] = [
-    (re.compile(r"\b(\d+)\s*(?:employee|people|staff|head|worker)", re.IGNORECASE), None, None),
+    (re.compile(r"\b(\d+)\s*(?:employee|people|staff|head|worker)", re.IGNORECASE), None, None),  # type: ignore[list-item]
     (re.compile(r"\b(start|solo|freelancer|micro)\b", re.IGNORECASE), "1-10", "1 to 10 employees"),
     (re.compile(r"\b(small\s*team)\b", re.IGNORECASE), "11-50", "11 to 50 employees"),
     (re.compile(r"\b(mid[\-\s]?size|mid[\-\s]?market)\b", re.IGNORECASE), "51-200", "51 to 200 employees"),
@@ -241,7 +239,7 @@ class SlotExtractor:
                 num_str = match.group(1)
                 try:
                     num = int(num_str)
-                    for low, high, band, band_label in _SIZE_BANDS:
+                    for low, high, band, _band_label in _SIZE_BANDS:
                         if low <= num <= high:
                             return {
                                 "value": band,
@@ -283,7 +281,7 @@ class SlotExtractor:
         # add a generic pain point
         if not pains and len(text.split()) >= 6:
             pains.append({
-                "id": f"pp_01",
+                "id": "pp_01",
                 "label": text[:80] + "..." if len(text) > 80 else text,
                 "raw_text": text,
                 "specificity": "vague",

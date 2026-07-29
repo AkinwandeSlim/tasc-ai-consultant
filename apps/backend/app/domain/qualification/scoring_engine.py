@@ -9,7 +9,7 @@ References: PRD FR-30 to FR-36, PRD Section 14, AI Blueprint Section 5
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Tuple
+from typing import Any
 
 from app.domain.models.score import (
     LeadScore,
@@ -19,7 +19,6 @@ from app.domain.models.score import (
 )
 from app.domain.qualification.banding import score_to_band
 from app.domain.qualification.components import (
-    ComponentResult,
     compute_authority,
     compute_budget,
     compute_engagement,
@@ -84,7 +83,7 @@ class ScoringEngine:
         self._threshold_hot = threshold_hot
         self._weights = component_weights or DEFAULT_COMPONENT_WEIGHTS
 
-    def compute(self, input_data: ScoringInput) -> Tuple[LeadScore, ScoringBreakdown]:
+    def compute(self, input_data: ScoringInput) -> tuple[LeadScore, ScoringBreakdown]:
         """Compute a deterministic lead score.
 
         Args:

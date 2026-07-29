@@ -138,7 +138,7 @@ class ConversationMemory:
         Returns:
             Estimated token savings.
         """
-        current_tokens = self._estimate_tokens(messages)
+        self._estimate_tokens(messages)
         older_turns = messages[:-self._window_size] if len(messages) > self._window_size else []
         older_tokens = self._estimate_tokens(older_turns)
 

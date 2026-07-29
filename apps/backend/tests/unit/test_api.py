@@ -12,13 +12,11 @@ References: PRD Section 6 (API contracts), Backend Blueprint Section 6
 
 from __future__ import annotations
 
-import json
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
-from app.core.config import get_settings, Settings
 
 
 @pytest.fixture

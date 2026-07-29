@@ -9,11 +9,9 @@ References: PRD Section 13.2, Backend Blueprint Section 8
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from app.domain.conversation.completion import CompletionDetector
-from app.domain.conversation.manager import ConversationManager
 from app.domain.conversation.phase_controller import PhaseController
 from app.domain.conversation.question_selector import QuestionSelector
 from app.domain.extraction.intent_classifier import IntentClassifier
@@ -21,16 +19,6 @@ from app.domain.extraction.merger import SlotMerger
 from app.domain.extraction.normaliser import Normaliser
 from app.domain.extraction.slot_extractor import SlotExtractor
 from app.domain.models.slots import SlotMap
-from app.domain.qualification.banding import score_to_band
-from app.domain.qualification.components import (
-    compute_authority,
-    compute_budget,
-    compute_engagement,
-    compute_fit,
-    compute_need_clarity,
-    compute_urgency,
-)
-from app.domain.qualification.overrides import apply_overrides
 from app.domain.qualification.scoring_engine import ScoringEngine, ScoringInput
 from app.domain.recommendation.engine import RecommendationEngine, RecommendationInput
 from app.orchestration.event_emitter import EventEmitter
@@ -276,7 +264,6 @@ class RecommendationStage(PipelineStage):
     async def execute(self, ctx: PipelineContext) -> PipelineContext:
         slot_map = ctx.slot_map
         pain_points = slot_map.get("pain_points", [])
-        profile = ctx.business_profile
 
         # Extract pain signal IDs
         pain_signal_ids = []
@@ -331,7 +318,6 @@ class PhaseTransitionStage(PipelineStage):
 
     async def execute(self, ctx: PipelineContext) -> PipelineContext:
         slot_map = ctx.slot_map
-        profile = ctx.business_profile
 
         pain_count = len(slot_map.get("pain_points", []))
         core_filled = sum(
@@ -371,7 +357,6 @@ class QuestionSelectionStage(PipelineStage):
 
     async def execute(self, ctx: PipelineContext) -> PipelineContext:
         slot_map = ctx.slot_map
-        profile = ctx.business_profile
 
         # Build a simplified slot map for the selector
         class SimpleSlotMap:
@@ -447,7 +432,6 @@ class SnapshotStage(PipelineStage):
     async def execute(self, ctx: PipelineContext) -> PipelineContext:
         # Build analysis snapshot from accumulated state
         slot_map = ctx.slot_map
-        profile = ctx.business_profile
 
         industry_data = None
         if slot_map.get("industry") and hasattr(slot_map["industry"], "value") and slot_map["industry"].value:

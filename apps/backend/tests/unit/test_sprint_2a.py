@@ -8,79 +8,8 @@ to Sprint 2B and beyond.
 
 from __future__ import annotations
 
-import datetime
-from pathlib import Path
-
 import pytest
-from pydantic import BaseModel, ValidationError
 
-from app.domain.models.conversation import (
-    ConversationContext,
-    ConversationEvent,
-    ConversationHistory,
-    ConversationMetadata,
-    ConversationProgress,
-    ConversationStage,
-    ConversationState,
-    SessionStatus,
-)
-from app.domain.business.models import (
-    AIReadiness,
-    AIReadinessFactors,
-    BudgetBand,
-    BusinessConstraints,
-    BusinessProfile,
-    BusinessSize,
-    DecisionAuthority,
-    DigitalMaturity,
-    GrowthStage,
-    Industry,
-    PainPoint,
-    PainSpecificity,
-    SlotValue,
-    TechnicalCapability,
-    Timeline,
-    Urgency,
-)
-from app.domain.models.score import (
-    LeadQualification,
-    LeadScore,
-    QualificationConfidence,
-    QualificationDimension,
-    QualificationReason,
-    ScoreComponent,
-    ScoringBreakdown,
-)
-from app.domain.models.recommendation import (
-    Confidence,
-    Priority,
-    Recommendation,
-    RecommendationCategory,
-    RecommendationReason,
-    RecommendationSummary,
-    RecommendedService,
-)
-from app.domain.conversation.phase_controller import (
-    PHASE_DEFINITIONS,
-    TRANSITION_RULES,
-    ConversationPhase,
-    PhaseController,
-)
-from app.domain.simulation.framework import (
-    DefaultScenarioProvider,
-    Scenario,
-    ScenarioRegistry,
-    ScenarioResult,
-    SimulationConfig,
-    SimulationFramework,
-)
-from app.infrastructure.prompts.registry import (
-    FilePromptLoader,
-    PromptCategory,
-    PromptMetadata,
-    PromptRegistry,
-    PromptTemplate,
-)
 from app.core.config import Settings, get_settings
 from app.core.exceptions import (
     CandidateGenerationError,
@@ -98,7 +27,59 @@ from app.core.exceptions import (
     SimulationError,
     TASCError,
 )
-
+from app.domain.business.models import (
+    AIReadiness,
+    AIReadinessFactors,
+    BudgetBand,
+    BusinessConstraints,
+    BusinessProfile,
+    BusinessSize,
+    DecisionAuthority,
+    Industry,
+    PainPoint,
+    PainSpecificity,
+    SlotValue,
+    Timeline,
+)
+from app.domain.conversation.phase_controller import (
+    PHASE_DEFINITIONS,
+    TRANSITION_RULES,
+    ConversationPhase,
+    PhaseController,
+)
+from app.domain.models.conversation import (
+    ConversationHistory,
+    ConversationProgress,
+    ConversationStage,
+    ConversationState,
+)
+from app.domain.models.recommendation import (
+    Confidence,
+    Recommendation,
+    RecommendationReason,
+    RecommendationSummary,
+    RecommendedService,
+)
+from app.domain.models.score import (
+    LeadScore,
+    QualificationConfidence,
+    ScoreComponent,
+    ScoringBreakdown,
+)
+from app.domain.simulation.framework import (
+    DefaultScenarioProvider,
+    Scenario,
+    ScenarioRegistry,
+    ScenarioResult,
+    SimulationConfig,
+    SimulationFramework,
+)
+from app.infrastructure.prompts.registry import (
+    FilePromptLoader,
+    PromptCategory,
+    PromptMetadata,
+    PromptRegistry,
+)
 
 # =============================================================================
 # Conversation Domain Model Tests

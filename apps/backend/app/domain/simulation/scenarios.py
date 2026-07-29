@@ -9,8 +9,9 @@ References: PRD Section 8, AI Blueprint Section 2
 
 from __future__ import annotations
 
-from app.domain.simulation.framework import Scenario
+from typing import Any
 
+from app.domain.simulation.framework import Scenario
 
 # =============================================================================
 # Scenario 1: Logistics Company

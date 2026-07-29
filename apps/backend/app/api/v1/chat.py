@@ -24,7 +24,6 @@ from app.core.exceptions import (
     EmptyMessageError,
     SessionNotFoundError,
 )
-from app.domain.simulation.framework import ScenarioRegistry
 from app.infrastructure.session_store import SessionRepository
 from app.orchestration.orchestrator import ConsultationOrchestrator
 
@@ -341,7 +340,7 @@ async def send_message(
     session_state["phase"] = result.conversation_phase
 
     # Append messages to history
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    now = datetime.datetime.now(datetime.UTC).isoformat()
     messages = session_state.setdefault("messages", [])
     messages.append({
         "message_id": f"usr_{body.session_id[:8]}_{session_state['turn_index']:03d}",

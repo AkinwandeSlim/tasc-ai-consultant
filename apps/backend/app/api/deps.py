@@ -4,7 +4,7 @@ Thin callables that read from application state. One per injectable
 dependency. Route handlers use `Depends(get_session_context)` etc.
 """
 
-from fastapi import Request, Depends
+from fastapi import Request
 from fastapi.exceptions import HTTPException
 
 from app.core.config import Settings, get_settings

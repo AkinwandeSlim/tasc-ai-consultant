@@ -11,7 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from app.infrastructure.prompts.registry import PromptCategory, PromptRegistry
+from app.infrastructure.prompts.registry import PromptRegistry
 
 logger = logging.getLogger(__name__)
 

@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from app.domain.simulation.framework import Scenario, ScenarioRegistry
+from app.domain.simulation.framework import ScenarioRegistry
 
 logger = logging.getLogger(__name__)
 

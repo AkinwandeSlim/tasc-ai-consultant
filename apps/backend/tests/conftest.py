@@ -1,6 +1,5 @@
 """Pytest configuration and shared fixtures."""
 
-from collections.abc import AsyncIterator
 
 import pytest
 

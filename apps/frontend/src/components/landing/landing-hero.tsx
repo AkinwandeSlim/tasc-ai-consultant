@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Brain,
@@ -49,48 +50,60 @@ const FEATURES = [
   },
 ];
 
-const PARTICLES = Array.from({ length: 20 }, (_, i) => ({
-  id: i,
-  x: Math.random() * 100,
-  y: Math.random() * 100,
-  size: Math.random() * 3 + 1,
-  duration: Math.random() * 20 + 10,
-  delay: Math.random() * 10,
-}));
-
 export function LandingHero({
   isConnected,
   isSimulationMode,
   onStart,
   isStarting,
 }: LandingHeroProps) {
+  // Generate particles only on the client to avoid hydration mismatch
+  const [particles, setParticles] =
+    useState<Array<{ id: number; x: number; y: number; size: number; duration: number; delay: number }> | null>(null);
+
+  useEffect(() => {
+    setParticles(
+      Array.from({ length: 20 }, (_, i) => ({
+        id: i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        size: Math.random() * 3 + 1,
+        duration: Math.random() * 20 + 10,
+        delay: Math.random() * 10,
+      })),
+    );
+  }, []);
+
+  const showParticles = typeof window !== "undefined" && particles !== null;
+
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-surface-base px-4">
-      {/* ── Subtle particle background ── */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {PARTICLES.map((p) => (
-          <motion.div
-            key={p.id}
-            className="absolute rounded-full bg-primary/10"
-            style={{
-              left: `${p.x}%`,
-              top: `${p.y}%`,
-              width: p.size,
-              height: p.size,
-            }}
-            animate={{
-              y: [0, -30, 0],
-              opacity: [0.2, 0.6, 0.2],
-            }}
-            transition={{
-              duration: p.duration,
-              repeat: Infinity,
-              delay: p.delay,
-              ease: "easeInOut",
-            }}
-          />
-        ))}
-      </div>
+      {/* ── Subtle particle background (client-only) ── */}
+      {showParticles && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {particles.map((p) => (
+            <motion.div
+              key={p.id}
+              className="absolute rounded-full bg-primary/10"
+              style={{
+                left: `${p.x}%`,
+                top: `${p.y}%`,
+                width: p.size,
+                height: p.size,
+              }}
+              animate={{
+                y: [0, -30, 0],
+                opacity: [0.2, 0.6, 0.2],
+              }}
+              transition={{
+                duration: p.duration,
+                repeat: Infinity,
+                delay: p.delay,
+                ease: "easeInOut",
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* ── Content ── */}
       <div className="relative z-10 mx-auto max-w-3xl text-center">

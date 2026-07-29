@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-
 _BAND_ORDER: list[str] = ["cold", "warm", "qualified", "hot"]
 
 

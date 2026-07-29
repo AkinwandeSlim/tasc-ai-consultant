@@ -42,20 +42,31 @@ export function ConversationProgressCard({
         ))}
       </div>
 
-      {/* Stage labels */}
-      <div className="flex justify-between mb-2">
+      {/* Stage labels — vertical stack for narrow panel */}
+      <div className="mb-3 space-y-1.5">
         {stages.map((label, idx) => (
-          <span
-            key={label}
-            className={cn(
-              "text-body-xs",
-              idx === currentStage
-                ? "text-foreground font-medium"
-                : "text-muted-foreground"
-            )}
-          >
-            {label}
-          </span>
+          <div key={label} className="flex items-center gap-2">
+            <span
+              className={cn(
+                "size-1.5 shrink-0 rounded-full",
+                idx < currentStage && "bg-primary",
+                idx === currentStage && "bg-primary/50",
+                idx > currentStage && "bg-muted-foreground/30"
+              )}
+            />
+            <span
+              className={cn(
+                "text-body-xs leading-none",
+                idx === currentStage
+                  ? "text-foreground font-medium"
+                  : idx < currentStage
+                    ? "text-muted-foreground/60 line-through"
+                    : "text-muted-foreground"
+              )}
+            >
+              {label}
+            </span>
+          </div>
         ))}
       </div>
 

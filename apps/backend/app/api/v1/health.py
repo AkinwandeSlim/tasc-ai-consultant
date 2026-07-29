@@ -29,7 +29,7 @@ async def health_check() -> dict:
         "status": "ok",
         "version": settings.APP_VERSION,
         "simulation_mode": settings.SIMULATION_MODE,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
     }
 
 

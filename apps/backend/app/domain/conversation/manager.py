@@ -15,8 +15,9 @@ import datetime
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.domain.business.models import BusinessProfile, SlotValue
 from app.domain.conversation.completion import CompletionDetector, CompletionResult
-from app.domain.conversation.memory import ConversationMemory, MemoryState
+from app.domain.conversation.memory import ConversationMemory
 from app.domain.conversation.phase_controller import PhaseController
 from app.domain.conversation.question_selector import QuestionSelector, SelectedQuestion
 from app.domain.extraction.intent_classifier import IntentClassifier, IntentResult
@@ -25,15 +26,9 @@ from app.domain.extraction.normaliser import Normaliser
 from app.domain.extraction.slot_extractor import ExtractionResult, SlotExtractor
 from app.domain.models.conversation import (
     ConversationContext,
-    ConversationHistory,
-    ConversationMetadata,
     ConversationProgress,
-    ConversationStage,
-    ConversationState,
-    SessionStatus,
 )
 from app.domain.models.slots import SlotMap
-from app.domain.business.models import BusinessProfile, SlotValue
 
 
 @dataclass
@@ -90,7 +85,7 @@ class ConversationManager:
         """
         import uuid
         session_id = str(uuid.uuid4())
-        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        now = datetime.datetime.now(datetime.UTC).isoformat()
 
         return {
             "session_id": session_id,
@@ -412,8 +407,8 @@ class ConversationManager:
                         f"{selected_question.question_text}"
                     )
                 return (
-                    f"Good, I'm getting a clearer picture of your situation. "
-                    f"Is there anything else you'd like to add?"
+                    "Good, I'm getting a clearer picture of your situation. "
+                    "Is there anything else you'd like to add?"
                 )
             if selected_question:
                 return selected_question.question_text

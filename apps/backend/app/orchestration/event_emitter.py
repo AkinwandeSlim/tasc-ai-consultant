@@ -10,8 +10,9 @@ References: PRD Section 6.5, Backend Blueprint Section 5.5
 from __future__ import annotations
 
 import datetime
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass
@@ -81,7 +82,7 @@ class EventEmitter:
                 "v": 1,
                 "phase": phase,
                 "turn_index": self._turn_index,
-                "at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "at": datetime.datetime.now(datetime.UTC).isoformat(),
             },
             turn_index=self._turn_index,
         )

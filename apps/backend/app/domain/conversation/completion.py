@@ -106,6 +106,6 @@ class CompletionDetector:
         """
         return CompletionResult(
             should_complete=True,
-            reason=f"Consultation completed by request",
+            reason="Consultation completed by request",
             reason_code=reason,
         )

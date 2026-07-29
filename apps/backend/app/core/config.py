@@ -8,7 +8,6 @@ the ASGI app starts (BP-06).
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -184,7 +183,7 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def validate_dependencies(self) -> "Settings":
+    def validate_dependencies(self) -> Settings:
         if self.CHROMA_MODE == ChromaMode.HTTP and not self.CHROMA_HTTP_URL:
             raise ValueError("CHROMA_HTTP_URL is required when CHROMA_MODE is http")
         if self.SESSION_STORE == SessionStore.REDIS and not self.REDIS_URL:
