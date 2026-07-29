@@ -376,7 +376,7 @@ async def send_message(
             is_complete: bool = False
             completion_reason: str = ""
 
-            def __post_init__(self):
+            def __post_init__(self) -> None:
                 if self.recommendations is None:
                     self.recommendations = []
 
