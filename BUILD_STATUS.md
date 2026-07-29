@@ -17,6 +17,7 @@
 | **G7 — Sprint 4: API Integration Layer** | ✅ **COMPLETE** | FastAPI REST endpoints, in-memory session store, request/response DTOs, correlation middleware, error handling, health/demo endpoints, 32 API tests |
 | **G8 — Sprint 5: Enterprise Frontend** | ✅ **COMPLETE** | Landing hero, dashboard layout, conversation workspace, AI thinking panel, 8-module analysis panel, responsive design, backend API integration |
 | **G9 — CI Stabilization** | ✅ **COMPLETE** | Ruff install fix, vitest smoke test, zod dedup, mypy config, integration test fix, all CI checks passing |
+| **G10 — Sprint 6.1: FastAPI → n8n Gateway** | ✅ **COMPLETE** | AutomationGateway protocol, MockAutomationGateway, N8nAutomationGateway with signing/retry/timeout, DI via N8N_ENABLED config, 32 gateway tests |
 
 ## What Has Been Created
 
@@ -132,7 +133,7 @@ The following are intentionally **not implemented** in this sprint:
 - SSE streaming (backend not wired for SSE in Sprint 5 scope)
 - Authentication / authorisation
 - Persistent database (PostgreSQL, etc.)
-- n8n workflow definitions and dispatcher integration
+- n8n workflow definitions (in Sprint 6.2 scope)
 - Admin dashboard
 - Analytics Dashboard
 - Multi-user support / role management
@@ -140,14 +141,19 @@ The following are intentionally **not implemented** in this sprint:
 
 ## Next Steps
 
-### Sprint 6 — AI Integration & Streaming
-1. **AI**: Integrate OpenAI chat and embedding providers via provider protocol
-2. **RAG**: Implement ChromaDB adapter, chunking, embedding pipeline, retrieval service
-3. **SSE Streaming**: Wire backend SSE events into frontend ThinkingPanel and real-time analysis updates
-4. **Advanced Extraction**: LLM-based intent classification, structured slot extraction with repair
-5. **Scoring**: Wire configurable weights from resource files into scoring engine
-6. **Recommendation**: LLM-based rationale generation instead of templates
-7. **Summary**: Implement executive summary generation
-8. **Automation**: Define n8n workflows for Sheets, Gmail, Telegram
-9. **Testing**: Integration, contract, and evaluation tests
-10. **Frontend tests**: Component and integration tests for the new UI
+### Sprint 6.2 — n8n Workflow Definition
+1. Define n8n workflow with webhook trigger, payload validation, and routing
+2. Configure idempotency and retry handling in n8n
+3. Wire N8nAutomationGateway to running n8n instance
+
+### Sprint 6.3 — LLM Prompt Engineering
+4. Integrate OpenAI chat and embedding providers via provider protocol
+
+### Sprint 6.4 — Google Sheets Automation
+5. Add Sheets node to n8n workflow for lead logging
+
+### Sprint 6.5 — Gmail Notifications
+6. Add Gmail nodes for sales briefing and visitor confirmation
+
+### Sprint 6.6 — End-to-End Testing
+7. Full integration, contract, and evaluation tests

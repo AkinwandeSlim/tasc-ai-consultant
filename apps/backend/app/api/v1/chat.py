@@ -4,8 +4,8 @@ POST   /api/v1/chat/start        — start a new consultation
 POST   /api/v1/chat/message      — send a message in an active session
 GET    /api/v1/chat/{session_id} — current consultation snapshot
 
-Every endpoint is a thin passthrough to the domain orchestrator.
-No business logic lives here.
+Every endpoint is a thin passthrough to the domain orchestrator
+(or automation gateway when n8n is enabled). No business logic lives here.
 
 References: PRD Section 6, Backend Blueprint Section 6
 """
@@ -19,11 +19,13 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.api.deps import get_automation_gateway
 from app.core.exceptions import (
     AlreadyCompletedError,
     EmptyMessageError,
     SessionNotFoundError,
 )
+from app.domain.gateway.automation_gateway import ConsultationRequest
 from app.infrastructure.session_store import SessionRepository
 from app.orchestration.orchestrator import ConsultationOrchestrator
 
@@ -304,12 +306,17 @@ async def send_message(
     body: SendMessageRequest,
     orchestrator: ConsultationOrchestrator = Depends(_get_orchestrator),
     session_store: SessionRepository = Depends(_get_session_store),
+    automation_gateway: object | None = Depends(get_automation_gateway),
 ) -> MessageResponse:
     """Send a message in an active consultation session.
 
-    Processes the visitor message through the consultation engine and
-    returns the assistant reply along with updated state, lead score,
-    recommendations, and progress.
+    Processes the visitor message through the consultation engine or
+    automation gateway and returns the assistant reply along with updated
+    state, lead score, recommendations, and progress.
+
+    The automation gateway is selected based on N8N_ENABLED:
+      - MockAutomationGateway: uses local deterministic engine (default)
+      - N8nAutomationGateway: forwards request to n8n webhook
     """
     if not body.message.strip():
         raise EmptyMessageError()
@@ -325,12 +332,65 @@ async def send_message(
     if session_state.get("status") in ("completed", "terminated"):
         raise AlreadyCompletedError()
 
-    # Process turn
-    result = await orchestrator.process_turn(
-        session_state=session_state,
-        visitor_message=body.message,
-        client_turn_id=body.client_turn_id,
+    # Construct a timestamp
+    now = datetime.datetime.now(datetime.UTC).isoformat()
+
+    # Gather conversation history from session state
+    conversation_history = session_state.get("messages", [])
+
+    # Process through the automation gateway
+    # The gateway abstracts whether processing happens locally (mock)
+    # or externally (n8n) — the route handler never knows which.
+    gateway_request = ConsultationRequest(
+        session_id=body.session_id,
+        user_message=body.message,
+        conversation_history=conversation_history,
+        structured_state=session_state,
+        timestamp=now,
+        simulation_mode=session_state.get("simulation_mode", False),
     )
+
+    # If the gateway has a process_consultation method, use it;
+    # otherwise fall back to the orchestrator directly.
+    if hasattr(automation_gateway, "process_consultation"):
+        result = await automation_gateway.process_consultation(gateway_request)
+    else:
+        # Fallback: use orchestrator directly
+        fallback_result = await orchestrator.process_turn(
+            session_state=session_state,
+            visitor_message=body.message,
+            client_turn_id=body.client_turn_id,
+        )
+        # Wrap in ConsultationResult-like interface
+        from dataclasses import dataclass
+
+        @dataclass
+        class _FallbackResult:
+            assistant_message: str = ""
+            conversation_phase: str = "greeting"
+            business_profile: Any = None
+            lead_score: Any = None
+            recommendations: list = None
+            completion_percentage: int = 0
+            next_question: str | None = None
+            is_complete: bool = False
+            completion_reason: str = ""
+
+            def __post_init__(self):
+                if self.recommendations is None:
+                    self.recommendations = []
+
+        result = _FallbackResult(
+            assistant_message=fallback_result.assistant_message,
+            conversation_phase=fallback_result.conversation_phase,
+            business_profile=fallback_result.business_profile,
+            lead_score=fallback_result.lead_score,
+            recommendations=fallback_result.recommendations or [],
+            completion_percentage=fallback_result.completion_percentage,
+            next_question=fallback_result.next_question,
+            is_complete=fallback_result.is_complete,
+            completion_reason=fallback_result.completion_reason,
+        )
 
     # Update session state in store
     session_state["turn_index"] = session_state.get("turn_index", 0) + 1
@@ -340,19 +400,19 @@ async def send_message(
     session_state["phase"] = result.conversation_phase
 
     # Append messages to history
-    now = datetime.datetime.now(datetime.UTC).isoformat()
+    now_str = now
     messages = session_state.setdefault("messages", [])
     messages.append({
         "message_id": f"usr_{body.session_id[:8]}_{session_state['turn_index']:03d}",
         "role": "user",
         "content": body.message,
-        "created_at": now,
+        "created_at": now_str,
     })
     messages.append({
         "message_id": f"ast_{body.session_id[:8]}_{session_state['turn_index']:03d}",
         "role": "assistant",
         "content": result.assistant_message,
-        "created_at": now,
+        "created_at": now_str,
     })
 
     if result.is_complete:
@@ -363,9 +423,12 @@ async def send_message(
     return MessageResponse(
         assistant_message=result.assistant_message,
         conversation_phase=result.conversation_phase,
-        business_profile=_build_business_profile_model(result.business_profile),
+        business_profile=_build_business_profile_model(
+            result.business_profile if isinstance(result.business_profile, dict)
+            else _profile_to_dict(result.business_profile)
+        ),
         lead_score=_build_lead_score_model(result.lead_score),
-        recommendations=_build_recommendation_models(result.recommendations),
+        recommendations=_build_recommendation_models(result.recommendations or []),
         completion_percentage=result.completion_percentage,
         next_question=result.next_question,
         conversation_finished=result.is_complete,
@@ -510,5 +573,3 @@ def _estimate_completion(bp: Any, phase: str) -> int:
                     "recommendation": 50, "qualification": 65, "capture_and_close": 80}
     base = mapped_phase.get(phase, 0)
     return base
-
-

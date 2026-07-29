@@ -13,7 +13,7 @@ Startup order:
   S6  Assert embedding dimension matches manifest
   S7  Load and compile prompt templates
   S8  Initialise repositories, create directories, verify write permission
-  S9  Construct n8n dispatcher (lazy, checked by /health)
+  S9  Build DI container with automation gateway
   S10 Warmup smoke retrieval query
   S11 Emit startup manifest log line
 """
@@ -21,6 +21,8 @@ Startup order:
 import logging
 
 from fastapi import FastAPI
+
+from app.container import build_container
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +66,19 @@ async def run_startup_sequence(app: FastAPI) -> None:
     # TODO: Create data directories if needed
     logger.info("S8: Repositories initialised")
 
-    # S9: Construct dispatcher (lazy)
-    logger.info("S9: n8n dispatcher constructed")
+    # S9: Build DI container with automation gateway
+    container = build_container(settings)
+    app.state.container = container
+
+    gateway_type = type(container.automation_gateway).__name__
+    logger.info(
+        "S9: DI container built",
+        extra={
+            "gateway_type": gateway_type,
+            "n8n_enabled": settings.N8N_ENABLED,
+            "n8n_webhook": settings.N8N_WEBHOOK_URL if settings.N8N_ENABLED else "(disabled)",
+        },
+    )
 
     # S10: Warmup smoke retrieval query
     # TODO: Run a smoke query
@@ -82,6 +95,7 @@ async def run_startup_sequence(app: FastAPI) -> None:
             "ruleset_version": ruleset_version,
             "session_store": settings.SESSION_STORE,
             "n8n_enabled": settings.N8N_ENABLED,
+            "gateway_type": gateway_type,
         },
     )
 
@@ -102,10 +116,18 @@ async def run_shutdown_sequence(app: FastAPI) -> None:
     logger.info("Shutdown: Awaiting dispatch tasks...")
     # TODO: Await pending dispatches
 
+    # Close HTTP client used by the gateway
+    container = getattr(app.state, "container", None)
+    if container:
+        http_client = getattr(container, "http_client", None)
+        if http_client:
+            await http_client.aclose()
+            logger.info("Shutdown: HTTP client closed")
+
     logger.info("Shutdown: Flushing state...")
     # TODO: Flush session and payload stores
 
     logger.info("Shutdown: Closing connections...")
-    # TODO: Close HTTPX and Chroma clients
+    # TODO: Close Chroma clients
 
     logger.info("Shutdown complete")

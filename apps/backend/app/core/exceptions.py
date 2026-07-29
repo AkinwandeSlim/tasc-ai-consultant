@@ -290,3 +290,45 @@ class SimulationConfigError(SimulationError):
     code = "SIMULATION_CONFIG_ERROR"
     message = "The simulation configuration is invalid."
     http_status = 500
+
+
+# --- Gateway / Automation Domain ---
+
+class GatewayError(TASCError):
+    """Base error for automation gateway failures."""
+    code = "GATEWAY_ERROR"
+    message = "An error occurred while communicating with the automation gateway."
+    retryable = True
+    http_status = 502
+
+
+class GatewayConnectionError(GatewayError):
+    """Raised when the gateway is unreachable (network error)."""
+    code = "GATEWAY_CONNECTION_ERROR"
+    message = "Could not reach the automation gateway. Please try again."
+    retryable = True
+    http_status = 502
+
+
+class GatewayTimeoutError(GatewayError):
+    """Raised when the gateway request times out."""
+    code = "GATEWAY_TIMEOUT"
+    message = "The automation gateway did not respond in time. Please try again."
+    retryable = True
+    http_status = 504
+
+
+class GatewayInvalidResponseError(GatewayError):
+    """Raised when the gateway returns an unparseable or unexpected response."""
+    code = "GATEWAY_INVALID_RESPONSE"
+    message = "Received an invalid response from the automation gateway."
+    retryable = False
+    http_status = 502
+
+
+class GatewayRejectedError(GatewayError):
+    """Raised when the gateway rejects the request (4xx non-retryable)."""
+    code = "GATEWAY_REJECTED"
+    message = "The automation gateway rejected the request."
+    retryable = False
+    http_status = 502

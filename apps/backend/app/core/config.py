@@ -137,7 +137,7 @@ class Settings(BaseSettings):
     N8N_TIMEOUT_SECONDS: float = 15.0
     N8N_MAX_ATTEMPTS: int = 3
     N8N_BACKOFF_BASE_SECONDS: float = 2.0
-    N8N_ENABLED: bool = True
+    N8N_ENABLED: bool = False
     DEADLETTER_PATH: str = "./data/payloads/deadletter"
 
     # --- Security ---
@@ -190,6 +190,10 @@ class Settings(BaseSettings):
             raise ValueError("REDIS_URL is required when SESSION_STORE is redis")
         if self.ADMIN_ROUTES_ENABLED and not self.ADMIN_API_KEY.get_secret_value():
             raise ValueError("ADMIN_API_KEY is required when ADMIN_ROUTES_ENABLED is true")
+        if self.N8N_ENABLED and not self.N8N_WEBHOOK_URL:
+            raise ValueError(
+                "N8N_WEBHOOK_URL is required when N8N_ENABLED is true"
+            )
         return self
 
 
