@@ -112,6 +112,7 @@
 - [x] `src/hooks/` — useHealthCheck, useConsultation, useThinkingAnimation
 - [x] `src/features/consultation/` — ConsultationFeature (full composition), copy catalogue
 - [x] Landing-to-dashboard flow with premium enterprise hero
+- [x] Interactive Kinetic Grid background (canvas-based, cursor-reactive)
 - [x] AI Thinking Panel with animated step progression
 - [x] Responsive: desktop (two-panel), tablet (drawer), mobile (floating score toggle)
 - [x] Light/dark mode via CSS custom properties
