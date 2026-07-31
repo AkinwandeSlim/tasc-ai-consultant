@@ -136,10 +136,10 @@ services:
       - TASC_N8N_SIGNING_SECRET=tasc-demo-signing-2026
       - TASC_N8N_REQUIRE_SIGNATURE=false
       - TASC_QUALIFIED_BANDS=qualified,hot
-      - TASC_SHEETS_DOCUMENT_ID=1briEHSEpTL0sdkNOz7rECF8bu0vvqsunnJHDHD506D0
-      - TASC_SHEETS_TAB_NAME=Leads
-      - TASC_SALES_EMAIL=akinwandealex95@gmail.com
-      - TASC_TELEGRAM_CHAT_ID=-5474451496
+      - TASC_SHEETS_DOCUMENT_ID=${TASC_SHEETS_DOCUMENT_ID:-your-google-sheet-id}
+      - TASC_SHEETS_TAB_NAME=${TASC_SHEETS_TAB_NAME:-Leads}
+      - TASC_SALES_EMAIL=${TASC_SALES_EMAIL:-sales@example.com}
+      - TASC_TELEGRAM_CHAT_ID=${TASC_TELEGRAM_CHAT_ID:--1000000000000}
 
 
       

@@ -15,8 +15,8 @@
 TASC (Trizen AI Solutions Consultant) is a conversational pre-sales consultant. A website
 visitor has a structured multi-turn conversation; the system extracts their business facts,
 identifies pain points, scores the lead against a deterministic 100-point rubric, recommends
-matching services, and hands the completed consultation to n8n, which logs the lead to Google
-Sheets and notifies the sales team by Telegram.
+matching services, and hands the completed consultation to n8n, which logs qualified leads to
+Google Sheets and notifies the sales team through Telegram.
 
 A runnable end-to-end demo of the whole flow is in
 [`apps/backend/demo_flow.py`](apps/backend/demo_flow.py) — it drives a full Swift Freight
@@ -91,11 +91,28 @@ provider timeout, rate limit, transport error, malformed JSON, or schema mismatc
 to the deterministic wording. It is gated behind `LLM_ENABLED` and defaults to `false`, so the
 whole system runs end to end with no API key.
 
-**Provider portability.** The `ChatProvider` protocol is provider-agnostic. OpenAI, OpenRouter
-and Groq all expose the OpenAI-compatible chat completions API, so a single adapter serves all
-three — switching is a configuration change, not a code change. Configure via
-`LLM_PROVIDER`, `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` (see [Enabling the LLM layer]).
-The legacy `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_CHAT_MODEL` spellings are still accepted.
+**Provider-portable LLM layer.** The natural-language generation layer is provider-agnostic.
+The application supports OpenAI, OpenRouter, and Groq through a common OpenAI-compatible
+adapter. Provider selection is controlled through environment variables rather than being
+coupled to the consultation engine:
+
+```env
+LLM_ENABLED=true
+LLM_PROVIDER=openrouter      # openai | openrouter | groq
+LLM_API_KEY=your-key
+LLM_MODEL=your-model
+LLM_BASE_URL=                # optional — provider default applied when empty
+```
+
+The default deterministic engine still runs with `LLM_ENABLED=false` — no API key needed.
+The legacy `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_CHAT_MODEL` spellings are still accepted
+as aliases.
+
+**Architecture, precisely.** The deterministic engine owns all decision-making and business
+logic (intent, extraction, scoring, recommendation, phases). The LLM layer is language
+enhancement only — it may rephrase the reply and pick the next question, never the business
+decision. n8n owns business automation only. That separation is what keeps scoring auditable
+and the whole system runnable without an API key.
 
 **Not implemented:** RAG, embeddings, and ChromaDB. The `knowledge/` corpus and the vector
 store protocol exist but are not wired, so no factual claim in this repo is retrieval-grounded.
@@ -106,11 +123,13 @@ store protocol exist but are not wired, so no factual claim in this repo is retr
 |---------|-------------|---------|
 | Google Sheets | n8n | Qualified-lead log (the CRM stand-in) |
 | Telegram | n8n | Real-time team alert |
-| OpenAI | FastAPI only | Natural-language generation (optional) |
+| OpenAI-compatible LLM provider | FastAPI | Optional natural-language generation |
 
 Two external business services, all behind n8n. The frontend never touches any of them.
-Gmail can be added to the workflow later by chaining an email node off `Log Lead to Google
-Sheets` and configuring OAuth in n8n — the acknowledgement contract already supports it.
+
+**Email notification:** Gmail was evaluated during development but is **not part of the final
+submitted n8n workflow**. The final demonstration focuses on the working Google Sheets +
+Telegram automation path, so no OAuth credential was required for the demonstrated submission.
 
 ## Automation
 
@@ -248,7 +267,6 @@ TASC_N8N_REQUIRE_SIGNATURE=false
 TASC_QUALIFIED_BANDS=qualified,hot
 TASC_SHEETS_DOCUMENT_ID=your-google-sheet-id
 TASC_SHEETS_TAB_NAME=Leads
-TASC_SALES_EMAIL=sales@example.com
 TASC_TELEGRAM_CHAT_ID=-1000000000000
 ```
 
