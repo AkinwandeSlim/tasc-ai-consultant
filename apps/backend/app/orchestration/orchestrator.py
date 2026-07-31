@@ -114,6 +114,20 @@ class ConsultationOrchestrator:
 
         processed = self._conversation_manager.process_turn(session_state, context)
 
+        # Write back state to session for persistence across turns.
+        # The conversation manager reads slot_map, phase, and questions_asked
+        # from session_state at the start of each turn. Without this write-back,
+        # the state resets on every turn, causing the question selector to
+        # re-ask already-answered slots and phase transitions to stall.
+        if processed.slot_map is not None:
+            session_state["slot_map"] = processed.slot_map
+        if processed.conversation_phase:
+            session_state["phase"] = processed.conversation_phase
+        if processed.next_question_slot is not None:
+            session_state.setdefault("questions_asked", []).append(
+                processed.next_question_slot
+            )
+
         if processed.intent_result and processed.intent_result.intent == "anti_persona":
             return self._build_result(
                 processed, turn_index, business_profile,
@@ -196,7 +210,33 @@ class ConsultationOrchestrator:
             for item in rec_summary.items
         ]
 
-        # --- Step 4: Build completion percentage ---
+        # --- Step 4: If in recommendation phase, present the recommendations ---
+        # The conversation manager's response generator only has a static
+        # placeholder for the recommendation phase. Override it with
+        # actual recommendations when they are available.
+        if processed.conversation_phase == "recommendation":
+            if recommendations and not rec_summary.withheld:
+                lines = [
+                    "Based on what you've shared, here are the services I think could help:",
+                ]
+                for r in recommendations:
+                    lines.append(
+                        f"  • {r['name']} — {r.get('rationale', 'Matches your needs.')}"
+                    )
+                lines.append(
+                    "Would you like me to go into more detail on any of these, "
+                    "or shall we discuss next steps?"
+                )
+                processed.assistant_message = "\n".join(lines)
+            else:
+                logger.debug(
+                    "Recommendation phase but no recommendations shown: "
+                    "withheld=%s rec_count=%d",
+                    rec_summary.withheld,
+                    len(recommendations),
+                )
+
+        # --- Step 5: Build completion percentage ---
         total_slots = 9
         filled = 0
         if processed.business_profile:
@@ -309,13 +349,24 @@ class ConsultationOrchestrator:
             profile_dict = {
                 "industry": bp.industry.value if bp.industry.value else None,
                 "company_size": bp.company_size.value if bp.company_size.value else None,
-                "pain_points": [{"label": p.label, "source_turn": p.source_turn} for p in bp.pain_points],
+                "pain_points": [
+                    {
+                        "label": p.label,
+                        "description": p.raw_text or p.label,
+                        "source_turn": p.source_turn,
+                    }
+                    for p in bp.pain_points
+                ],
                 "current_tools": bp.current_tools,
                 "goals": bp.goals,
                 "timeline": bp.timeline.value if bp.timeline.value else None,
                 "budget_band": bp.budget_band.value if bp.budget_band.value else None,
                 "decision_authority": bp.decision_authority.value if bp.decision_authority.value else None,
+                "decision_maker": bp.decision_authority.value if bp.decision_authority.value else None,
                 "has_contact": bp.has_contact,
+                "contact_name": bp.contact_name.value if bp.contact_name.value else None,
+                "contact_email": bp.contact_email.value if bp.contact_email.value else None,
+                "contact_company": bp.contact_company.value if bp.contact_company.value else None,
                 "core_slots_filled": bp.core_slots_filled,
                 "commercial_slots_filled": bp.commercial_slots_filled,
                 "total_slots_filled": bp.total_slots_filled,

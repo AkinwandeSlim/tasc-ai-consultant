@@ -7,6 +7,9 @@ interface ChatInputProps {
   onSend: (_message: string) => void;
   disabled: boolean;
   placeholder?: string;
+  /** When true, shows a checkmark instead of a spinner for the disabled icon.
+   *  Use when disabled is due to consultation completion rather than loading. */
+  conversationFinished?: boolean;
 }
 
 const MAX_CHARS = 2000;
@@ -15,6 +18,7 @@ export function ChatInput({
   onSend,
   disabled,
   placeholder = "Tell Nova about your business...",
+  conversationFinished = false,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -81,7 +85,9 @@ export function ChatInput({
           className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="Send message"
         >
-          {disabled ? (
+          {conversationFinished ? (
+            <span className="size-4 text-green-500">✓</span>
+          ) : disabled ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
             <Send className="size-4" />

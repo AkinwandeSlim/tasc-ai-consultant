@@ -99,7 +99,8 @@ _TOOL_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bexcel\b|\bspreadsheets?\b", re.IGNORECASE), "Excel"),
     (re.compile(r"\b(google\s*sheets|gsheets)\b", re.IGNORECASE), "Google Sheets"),
     (re.compile(r"\boutlook\b", re.IGNORECASE), "Outlook"),
-    (re.compile(r"\bgmail\b", re.IGNORECASE), "Gmail"),
+    # Negative lookbehind for @ avoids matching "gmail" inside email addresses
+    (re.compile(r"(?<!@)\bgmail\b", re.IGNORECASE), "Gmail"),
     (re.compile(r"\bsalesforce\b|\bcrm\b", re.IGNORECASE), "Salesforce"),
     (re.compile(r"\bhubspot\b", re.IGNORECASE), "HubSpot"),
     (re.compile(r"\bslack\b", re.IGNORECASE), "Slack"),
@@ -112,6 +113,33 @@ _TOOL_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\berp\b", re.IGNORECASE), "ERP"),
     (re.compile(r"\b(sharepoint|teams)\b", re.IGNORECASE), "Microsoft Teams/SharePoint"),
     (re.compile(r"\bzoho\b", re.IGNORECASE), "Zoho"),
+]
+
+# --- Contact extraction patterns ---
+# Email regex: requires at least one character before @, a domain with a dot, and a TLD
+_CONTACT_EMAIL_PATTERN: re.Pattern = re.compile(
+    r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
+)
+
+_CONTACT_NAME_PATTERNS: list[re.Pattern] = [
+    # "Name: John Smith" — lazy capture stops at boundary words or "\nEmail:"
+    re.compile(r"(?:name\s*[:\-]?\s*)([A-Za-z .']+?)(?:\s*,\s*|\s+and\s+|\s+email\b|\s+my\s+|\s+is\s+|\s+at\s+|\s+phone\s+|$)", re.IGNORECASE),
+    # "my name is John Smith"
+    re.compile(r"(?:my\s+name\s+is\s+)([A-Za-z .']+)", re.IGNORECASE),
+    # "I'm John Smith"
+    re.compile(r"(?:i'?m\s+)([A-Za-z .']+?)(?:\s*,\s*|\s+and\s+|\s+my\s+|\s+the\s+|$)", re.IGNORECASE),
+]
+
+# --- Company / organisation extraction patterns ---
+# Conservative: only extract when an explicit company-introduction pattern is present.
+# Broad patterns like standalone "at X" are excluded to avoid false positives.
+_COMPANY_PATTERNS: list[re.Pattern] = [
+    # "Company: Swift Freight" or "Company name: Swift Freight"
+    re.compile(r"(?:company\s*(?:name)?\s*[:\-]?\s*)([A-Za-z0-9 .'&]+?)(?:\s*[,\.;]|\s+and\s+|\s+is\s+|\s+a\s+|$)", re.IGNORECASE),
+    # "We are Swift Freight, a logistics company" / "We're Swift Freight"
+    re.compile(r"(?:we'?re|we\s+are)\s+([A-Za-z0-9 .'&]+?)(?:\s*,|\s+i'?m|\s+my\s+|\s+we\s+|\s+the\s+|\s+a\s+|$)", re.IGNORECASE),
+    # "I work at Swift Freight" / "I am with Swift Freight" / "I'm at Swift Freight"
+    re.compile(r"(?:i\s+(?:work|am)\s+(?:at|with)|i'?m\s+(?:at|with))\s+([A-Za-z0-9 .'&]+?)(?:\s*,|\s+i'?m|\s+my\s+|\s+we\s+|\s+the\s+|\s+a\s+|$)", re.IGNORECASE),
 ]
 
 # --- Refusal detection ---
@@ -213,6 +241,36 @@ class SlotExtractor:
         if role:
             result.slots["decision_role"] = role
 
+        # 9. Extract contact information
+        # Contact extraction only extracts; it does not validate here beyond
+        # the email regex pattern requiring a valid-looking email address.
+        contact_email = self._extract_contact_email(text)
+        if contact_email:
+            result.slots["contact_email"] = {
+                "value": contact_email,
+                "raw": text,
+                "confidence": 0.8,
+                "source_turn": turn_index,
+            }
+        contact_name = self._extract_contact_name(text)
+        if contact_name:
+            result.slots["contact_name"] = {
+                "value": contact_name,
+                "raw": text,
+                "confidence": 0.7,
+                "source_turn": turn_index,
+            }
+
+        # 10. Extract company / organisation name
+        company = self._extract_company(text)
+        if company:
+            result.slots["contact_company"] = {
+                "value": company,
+                "raw": text,
+                "confidence": 0.6,
+                "source_turn": turn_index,
+            }
+
         # Calculate overall extraction confidence
         filled_slots = [s for s in result.slots.values() if s.get("confidence", 0) > 0]
         if filled_slots:
@@ -268,7 +326,7 @@ class SlotExtractor:
                 if pain_id not in seen:
                     seen.add(pain_id)
                     pains.append({
-                        "id": f"pp_{len(pains) + 1:02d}",
+                        "id": pain_id,
                         "label": self._pain_id_to_label(pain_id),
                         "raw_text": text,
                         "specificity": "specific",
@@ -281,7 +339,7 @@ class SlotExtractor:
         # add a generic pain point
         if not pains and len(text.split()) >= 6:
             pains.append({
-                "id": "pp_01",
+                "id": "unstructured_pain",
                 "label": text[:80] + "..." if len(text) > 80 else text,
                 "raw_text": text,
                 "specificity": "vague",
@@ -357,6 +415,67 @@ class SlotExtractor:
             return {"value": "influencer", "raw": text, "confidence": 0.6, "source_turn": 0}
         if re.search(r"\b(analyst|junior|associate|coordinator)\b", text, re.IGNORECASE):
             return {"value": "researcher", "raw": text, "confidence": 0.5, "source_turn": 0}
+        return None
+
+    @staticmethod
+    def _extract_contact_email(text: str) -> str | None:
+        """Extract a valid email address from text.
+
+        The regex requires an @ symbol with a domain containing a dot
+        and a top-level domain (e.g. user@example.com). Addresses without
+        an @domain pattern (e.g. "akinwandealex9507") are rejected.
+        """
+        match = _CONTACT_EMAIL_PATTERN.search(text)
+        if match:
+            return match.group(0)
+        return None
+
+    @staticmethod
+    def _extract_contact_name(text: str) -> str | None:
+        """Extract a contact name from structured patterns.
+
+        Matches patterns like "Name: John Doe", "my name is John Doe",
+        or "I'm John Doe". Returns the captured name or None.
+        """
+        for pattern in _CONTACT_NAME_PATTERNS:
+            # Use finditer to scan for all matches in the text.
+            # If the first match fails validation (e.g., captures "and"
+            # from "your name and email"), the next match may succeed
+            # (e.g., "Name: Fakorede Akinwande Alex").
+            for match in pattern.finditer(text):
+                if match:
+                    name = match.group(1).strip()
+                    # Reject strings that are clearly not names
+                    if name and len(name) >= 2 and len(name) <= 60:
+                        # Require at least one uppercase letter to avoid
+                        # capturing generic trailing words like "and" or "email"
+                        # that get picked up from "your name and email" patterns.
+                        if any(c.isupper() for c in name):
+                            return name
+        return None
+
+    @staticmethod
+    def _extract_company(text: str) -> str | None:
+        """Extract a company / organisation name from text.
+
+        Conservative extraction — only matches explicit company-introduction
+        patterns. The captured name must start with an uppercase letter to
+        avoid capturing generic phrases like "a logistics company".
+
+        Matches patterns like "Company: Swift Freight",
+        "We are Swift Freight", or "I work at Swift Freight".
+        Returns the captured name or None.
+        """
+        for pattern in _COMPANY_PATTERNS:
+            match = pattern.search(text)
+            if match:
+                company = match.group(1).strip()
+                # Reject strings that are clearly not company names
+                if company and len(company) >= 2 and len(company) <= 80:
+                    # Require uppercase first letter to avoid capturing
+                    # generic phrases like "a logistics company"
+                    if company[0].isupper():
+                        return company
         return None
 
     @staticmethod

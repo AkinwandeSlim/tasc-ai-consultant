@@ -99,7 +99,7 @@ async def run_startup_sequence(app: FastAPI) -> None:
         extra={
             "app_version": "1.0.0",
             "environment": settings.APP_ENV,
-            "chat_model": settings.LLM_CHAT_MODEL,
+            "chat_model": settings.LLM_MODEL,
             "embedding_model": settings.LLM_EMBEDDING_MODEL,
             "ruleset_version": ruleset_version,
             "session_store": settings.SESSION_STORE,

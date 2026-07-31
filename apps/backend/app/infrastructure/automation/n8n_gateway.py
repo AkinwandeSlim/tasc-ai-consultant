@@ -1,13 +1,16 @@
-"""N8n automation gateway — forwards consultation requests to n8n webhook.
+"""N8n automation gateway — processes consultation locally, dispatches to n8n.
 
-Production implementation of the AutomationGateway protocol.
-Responsible for:
-  - HTTP POST with signed payload
-  - Timeout handling (N8N_TIMEOUT_SECONDS)
-  - Retry policy with exponential backoff (N8N_MAX_ATTEMPTS)
-  - Structured logging of every request/response
-  - Error handling for all failure modes
-  - Response validation against the expected contract
+The deterministic engine (or LlmConsultationEngine) processes every
+consultation turn. The result is then dispatched to the n8n webhook
+for business automation (Google Sheets, Gmail, Telegram). The n8n
+response is logged but never used to derive consultation fields.
+
+This ensures:
+  - The consultation response is always computed by tested Python code.
+  - n8n failures never block the frontend from getting a response.
+  - n8n owns only business automation, never AI reasoning.
+
+References: Sprint 6.1 architecture, README "Why AI lives in FastAPI"
 """
 
 from __future__ import annotations
@@ -19,12 +22,6 @@ from typing import Any
 
 import httpx
 
-from app.core.exceptions import (
-    GatewayConnectionError,
-    GatewayInvalidResponseError,
-    GatewayRejectedError,
-    GatewayTimeoutError,
-)
 from app.domain.gateway.automation_gateway import (
     ConsultationRequest,
     ConsultationResult,
@@ -33,24 +30,17 @@ from app.infrastructure.automation.signing import build_signature_headers
 
 logger = logging.getLogger(__name__)
 
-# Expected acknowledgement structure from n8n
-_N8N_ACK_SCHEMA = {"received", "consultation_id"}
-
 
 class N8nAutomationGateway:
-    """Gateway that forwards consultation requests to an n8n webhook.
+    """Gateway that processes consultation locally and dispatches to n8n.
 
-    All external communication flows through this class. The rest of the
-    application is isolated from n8n implementation details.
+    The turn is processed by the local consultation engine first.
+    The full result is then dispatched to the n8n webhook for business
+    automation (sheets, email, notifications). The n8n response is
+    acknowledged but NOT used to formulate the consultation result.
 
-    Usage:
-        gateway = N8nAutomationGateway(
-            webhook_url="https://n8n.example.com/webhook/consult",
-            shared_secret="s3cret",
-            signing_secret="s1gn1ng",
-            http_client=httpx.AsyncClient(),
-        )
-        result = await gateway.process_consultation(request)
+    n8n dispatch failures are logged and swallowed — the frontend
+    always gets the local consultation result.
     """
 
     def __init__(
@@ -59,12 +49,20 @@ class N8nAutomationGateway:
         shared_secret: str,
         signing_secret: str,
         http_client: httpx.AsyncClient,
+        orchestrator: Any = None,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
         backoff_base_seconds: float = 2.0,
     ) -> None:
         if not webhook_url:
             raise ValueError("webhook_url is required for N8nAutomationGateway")
+
+        if orchestrator is None:
+            from app.orchestration.orchestrator import ConsultationOrchestrator
+
+            self._orchestrator = ConsultationOrchestrator()
+        else:
+            self._orchestrator = orchestrator
 
         self._webhook_url = webhook_url
         self._shared_secret = shared_secret
@@ -78,27 +76,71 @@ class N8nAutomationGateway:
         self,
         request: ConsultationRequest,
     ) -> ConsultationResult:
-        """Forward a consultation turn to the n8n webhook.
+        """Process a consultation turn locally and dispatch to n8n.
 
-        Implements retry with exponential backoff and jitter.
-        Returns the parsed response or raises a GatewayError.
+        Flow:
+          1. Process the turn via the local deterministic/LLM engine.
+          2. Map the result to a ConsultationResult.
+          3. Dispatch the enriched payload to the n8n webhook.
+          4. Return the local result — n8n response is advisory only.
 
         Args:
-            request: The consultation request with full session context.
+            request: The consultation request with session context.
 
         Returns:
-            ConsultationResult parsed from the n8n response.
+            ConsultationResult from the local engine.
 
         Raises:
-            GatewayConnectionError: If the webhook is unreachable.
-            GatewayTimeoutError: If the request times out.
-            GatewayInvalidResponseError: If the response is malformed.
-            GatewayRejectedError: If the webhook returns a non-retryable 4xx.
+            Never raises — n8n dispatch failures are logged and swallowed.
         """
-        payload = self._build_payload(request)
+        # 1. Process the turn locally
+        session_state = request.structured_state
+        if "session_id" not in session_state:
+            session_state["session_id"] = request.session_id
+
+        result = await self._orchestrator.process_turn(
+            session_state=session_state,
+            visitor_message=request.user_message,
+        )
+
+        consultation_result = ConsultationResult(
+            assistant_message=result.assistant_message,
+            conversation_phase=result.conversation_phase,
+            business_profile=result.business_profile,
+            lead_score=result.lead_score,
+            recommendations=result.recommendations or [],
+            completion_percentage=result.completion_percentage,
+            next_question=result.next_question,
+            is_complete=result.is_complete,
+            completion_reason=result.completion_reason,
+            analysis_snapshot=getattr(result, "analysis_snapshot", None),
+            errors=getattr(result, "errors", []),
+        )
+
+        # 2. Dispatch the enriched payload to n8n (fire-and-forget)
+        await self._dispatch_to_n8n(request, consultation_result)
+
+        return consultation_result
+
+    async def _dispatch_to_n8n(
+        self,
+        request: ConsultationRequest,
+        consultation_result: ConsultationResult,
+    ) -> None:
+        """Dispatch the consultation result to the n8n webhook.
+
+        Failures are logged and swallowed — they never reach the caller.
+
+        Args:
+            request: The original consultation request.
+            consultation_result: The locally-computed consultation result.
+        """
+        payload = self._build_payload(request, consultation_result)
         raw_body = json.dumps(payload, default=str).encode("utf-8")
 
-        correlation_id = request.structured_state.get("correlation_id", request.session_id)
+        correlation_id = request.structured_state.get(
+            "correlation_id", request.session_id
+        )
 
         headers = build_signature_headers(
             payload=raw_body,
@@ -107,9 +149,7 @@ class N8nAutomationGateway:
             correlation_id=correlation_id,
         )
 
-        last_error: Exception | None = None
         attempt = 0
-
         while attempt < self._max_retries:
             attempt += 1
             start_time = time.monotonic()
@@ -133,25 +173,25 @@ class N8nAutomationGateway:
                 duration = time.monotonic() - start_time
                 status = response.status_code
 
-                # Success (2xx) — parse and return
                 if 200 <= status < 300:
-                    return self._parse_response(
-                        response=response,
-                        session_id=request.session_id,
-                        duration=duration,
-                        attempt=attempt,
+                    logger.info(
+                        "N8n dispatch success: session=%s status=%d duration=%.2fs attempt=%d/%d",
+                        request.session_id,
+                        status,
+                        duration,
+                        attempt,
+                        self._max_retries,
                     )
+                    return  # Success — done
 
-                # 409 Conflict (idempotency) — treat as success
                 if status == 409:
                     logger.info(
                         "N8n idempotency match (409): session=%s duration=%.2fs",
                         request.session_id,
                         duration,
                     )
-                    return self._build_idempotency_result(request)
+                    return
 
-                # 401 or 403 — auth failure, do not retry
                 if status in (401, 403):
                     logger.error(
                         "N8n auth rejected (status=%d): session=%s duration=%.2fs",
@@ -159,11 +199,8 @@ class N8nAutomationGateway:
                         request.session_id,
                         duration,
                     )
-                    raise GatewayRejectedError(
-                        message=f"n8n webhook rejected the request with status {status}",
-                    )
+                    return  # Non-retryable
 
-                # Other 4xx — client error, do not retry
                 if 400 <= status < 500:
                     logger.error(
                         "N8n client error (status=%d): session=%s duration=%.2fs body=%s",
@@ -172,21 +209,14 @@ class N8nAutomationGateway:
                         duration,
                         response.text[:500],
                     )
-                    raise GatewayRejectedError(
-                        message=f"n8n webhook returned status {status}",
-                    )
+                    return  # Non-retryable
 
-                # 5xx — retryable
-                duration = time.monotonic() - start_time
                 logger.warning(
                     "N8n server error (status=%d): session=%s attempt=%d duration=%.2fs",
                     status,
                     request.session_id,
                     attempt,
                     duration,
-                )
-                last_error = GatewayConnectionError(
-                    message=f"n8n webhook returned status {status}",
                 )
 
             except httpx.TimeoutException:
@@ -196,9 +226,6 @@ class N8nAutomationGateway:
                     request.session_id,
                     attempt,
                     duration,
-                )
-                last_error = GatewayTimeoutError(
-                    message=f"n8n webhook timed out after {self._timeout}s",
                 )
 
             except httpx.ConnectError as e:
@@ -210,15 +237,8 @@ class N8nAutomationGateway:
                     duration,
                     str(e),
                 )
-                last_error = GatewayConnectionError(
-                    message="Could not connect to the n8n webhook",
-                )
 
-            except (GatewayRejectedError, GatewayInvalidResponseError):
-                # Non-retryable — re-raise immediately
-                raise
-
-            except Exception as e:
+            except Exception:
                 duration = time.monotonic() - start_time
                 logger.exception(
                     "N8n unexpected error: session=%s attempt=%d duration=%.2fs",
@@ -226,11 +246,8 @@ class N8nAutomationGateway:
                     attempt,
                     duration,
                 )
-                last_error = GatewayConnectionError(
-                    message=f"Unexpected gateway error: {str(e)}",
-                )
 
-            # If we still have retries, wait with exponential backoff + jitter
+            # Retry with exponential backoff + jitter
             if attempt < self._max_retries:
                 import random
 
@@ -247,134 +264,94 @@ class N8nAutomationGateway:
                 )
                 await self._async_sleep(total_sleep)
 
-        # All retries exhausted
         logger.error(
-            "N8n dispatch failed after %d attempts: session=%s",
+            "N8n dispatch failed after %d attempts: session=%s — result already returned to frontend",
             self._max_retries,
             request.session_id,
         )
 
-        if last_error:
-            raise last_error
-
-        raise GatewayConnectionError(
-            message="n8n webhook did not return a successful response",
-        )
-
-    def _build_payload(self, request: ConsultationRequest) -> dict[str, Any]:
+    def _build_payload(
+        self,
+        request: ConsultationRequest,
+        consultation_result: ConsultationResult,
+    ) -> dict[str, Any]:
         """Build the JSON payload to send to n8n.
 
-        Includes all context needed for the n8n workflow to process
-        the consultation turn.
+        Includes the full consultation result with session context,
+        so n8n has everything it needs for business automation.
+
+        The payload shape matches what the n8n Code node
+        (Validate & Normalize) expects: lead_qualification, contact,
+        conversation, business_profile, etc.
 
         Args:
-            request: The consultation request.
+            request: The original consultation request.
+            consultation_result: The locally-computed consultation result.
 
         Returns:
             Dict payload for the n8n webhook.
         """
+        # Map lead_score → lead_qualification for n8n contract
+        lead_score = consultation_result.lead_score or {}
+        lead_qualification = {
+            "band": lead_score.get("band", "exploring"),
+            "level": lead_score.get("band", "exploring"),
+            "score": lead_score.get("score", 0),
+            "justification": lead_score.get("justification", ""),
+        }
+
+        # Extract contact from business_profile (now includes contact_name/email/company)
+        bp = consultation_result.business_profile
+        if isinstance(bp, dict):
+            contact = {
+                "name": bp.get("contact_name"),
+                "email": bp.get("contact_email") if bp.get("has_contact") else None,
+                "company": bp.get("contact_company"),
+            }
+        elif bp is not None:
+            contact = {
+                "name": getattr(getattr(bp, "contact_name", None), "value", None),
+                "email": getattr(getattr(bp, "contact_email", None), "value", None),
+                "company": getattr(getattr(bp, "contact_company", None), "value", None),
+            }
+        else:
+            contact = {}
+
         return {
             "session_id": request.session_id,
+            "consultation_id": request.session_id,
             "user_message": request.user_message,
             "conversation_history": request.conversation_history,
+            "assistant_message": consultation_result.assistant_message,
+            "conversation_phase": consultation_result.conversation_phase,
+            "business_profile": bp,
+            "lead_score": lead_score,
+            "lead_qualification": lead_qualification,
+            "contact": contact,
+            "conversation": {
+                "message": consultation_result.assistant_message,
+                "phase": consultation_result.conversation_phase,
+                "turn_count": len(request.conversation_history or []) // 2 + 1,
+            },
+            "recommendations": consultation_result.recommendations or [],
+            "completion_percentage": consultation_result.completion_percentage,
+            "next_question": consultation_result.next_question,
+            "conversation_finished": consultation_result.is_complete,
+            "completion_reason": consultation_result.completion_reason,
+            "response_type": "consultation_turn",
+            "turn_index": len(request.conversation_history or []) // 2 + 1,
             "structured_state": request.structured_state,
             "timestamp": request.timestamp or time.time(),
             "simulation_mode": request.simulation_mode,
         }
 
-    def _parse_response(
-        self,
-        response: httpx.Response,
-        session_id: str,
-        duration: float,
-        attempt: int,
-    ) -> ConsultationResult:
-        """Parse and validate the n8n webhook response.
-
-        Args:
-            response: The HTTP response from n8n.
-            session_id: The consultation session ID.
-            duration: Request duration in seconds.
-            attempt: The attempt number.
+    async def start_consultation(self) -> dict[str, Any]:
+        """Start a new consultation using the local engine.
 
         Returns:
-            Parsed ConsultationResult.
-
-        Raises:
-            GatewayInvalidResponseError: If the response is malformed.
+            Dict with session state including greeting message.
         """
-        try:
-            data = response.json()
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(
-                "N8n invalid JSON response: session=%s status=%d error=%s body=%s",
-                session_id,
-                response.status_code,
-                str(e),
-                response.text[:500],
-            )
-            raise GatewayInvalidResponseError(
-                message="n8n webhook returned invalid JSON",
-            ) from e
-
-        if not isinstance(data, dict):
-            logger.error(
-                "N8n non-dict response: session=%s type=%s body=%s",
-                session_id,
-                type(data).__name__,
-                str(data)[:500],
-            )
-            raise GatewayInvalidResponseError(
-                message="n8n webhook returned an unexpected response format",
-            )
-
-        logger.info(
-            "N8n dispatch success: session=%s status=%d duration=%.2fs attempt=%d/%d",
-            session_id,
-            response.status_code,
-            duration,
-            attempt,
-            self._max_retries,
-        )
-
-        assistant_message = data.get("assistant_message", "")
-        conversation_phase = data.get("conversation_phase", "discovery")
-
-        return ConsultationResult(
-            assistant_message=assistant_message,
-            conversation_phase=conversation_phase,
-            business_profile=data.get("business_profile"),
-            lead_score=data.get("lead_score"),
-            recommendations=data.get("recommendations", []),
-            completion_percentage=data.get("completion_percentage", 0),
-            next_question=data.get("next_question"),
-            is_complete=data.get("conversation_finished", False),
-            completion_reason=data.get("completion_reason", ""),
-            analysis_snapshot=data.get("analysis_snapshot"),
-            errors=data.get("errors", []),
-        )
-
-    def _build_idempotency_result(
-        self,
-        request: ConsultationRequest,
-    ) -> ConsultationResult:
-        """Build a result for an idempotency match (409 response).
-
-        Args:
-            request: The original consultation request.
-
-        Returns:
-            A ConsultationResult indicating continuation.
-        """
-        return ConsultationResult(
-            assistant_message="",
-            conversation_phase=request.structured_state.get("phase", "discovery"),
-            business_profile=request.structured_state.get("business_profile"),
-            lead_score=request.structured_state.get("lead_score"),
-            recommendations=request.structured_state.get("recommendations", []),
-            completion_percentage=request.structured_state.get("completion_percentage", 0),
-            is_complete=False,
-        )
+        return await self._orchestrator.start_consultation()
 
     async def _async_sleep(self, seconds: float) -> None:
         """Async sleep helper for retry backoff."""

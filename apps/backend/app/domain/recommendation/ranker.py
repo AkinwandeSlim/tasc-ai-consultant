@@ -38,7 +38,7 @@ class Ranker:
 
     def __init__(
         self,
-        confidence_floor: float = 0.6,
+        confidence_floor: float = 0.5,
         max_recommendations: int = 3,
     ) -> None:
         self._confidence_floor = confidence_floor

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +28,8 @@ class LogLevel(str, Enum):
 
 class LLMProvider(str, Enum):
     OPENAI = "openai"
+    OPENROUTER = "openrouter"
+    GROQ = "groq"
 
 
 class StructuredMode(str, Enum):
@@ -76,11 +78,24 @@ class Settings(BaseSettings):
     SHUTDOWN_GRACE_SECONDS: int = 20
 
     # --- Model Provider ---
+    # Provider-agnostic LLM configuration. The generic names are canonical;
+    # the legacy OPENAI_* / LLM_CHAT_MODEL spellings remain accepted so
+    # existing environments keep working unchanged.
     LLM_PROVIDER: LLMProvider = LLMProvider.OPENAI
     LLM_ENABLED: bool = False
-    OPENAI_API_KEY: SecretStr = Field(default="", validate_default=False)
-    OPENAI_BASE_URL: str | None = None
-    LLM_CHAT_MODEL: str = "gpt-4.1-mini"
+    LLM_API_KEY: SecretStr = Field(
+        default="",
+        validate_default=False,
+        validation_alias=AliasChoices("LLM_API_KEY", "OPENAI_API_KEY"),
+    )
+    LLM_BASE_URL: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LLM_BASE_URL", "OPENAI_BASE_URL"),
+    )
+    LLM_MODEL: str = Field(
+        default="gpt-4.1-mini",
+        validation_alias=AliasChoices("LLM_MODEL", "LLM_CHAT_MODEL"),
+    )
     LLM_EMBEDDING_MODEL: str = "text-embedding-3-small"
     LLM_TEMPERATURE_CONVERSATION: float = 0.3
     LLM_TEMPERATURE_STRUCTURED: float = 0.0

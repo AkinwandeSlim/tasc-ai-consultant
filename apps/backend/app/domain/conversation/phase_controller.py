@@ -343,6 +343,7 @@ class PhaseController:
         anti_persona: bool = False,
         discovery_refused_count: int = 0,
         wrap_up_flag: bool = False,
+        all_eligible_filled: bool = False,
     ) -> tuple[str, str | None]:
         """Evaluate the next phase transition.
 
@@ -362,6 +363,8 @@ class PhaseController:
             anti_persona: Whether anti-persona detected.
             discovery_refused_count: Number of discovery refusals.
             wrap_up_flag: Whether session token ceiling approached.
+            all_eligible_filled: Whether all eligible slots for current
+                phase have data. Forces progression when no questions remain.
 
         Returns:
             Tuple of (next_phase, trigger or None if no change).
@@ -407,7 +410,7 @@ class PhaseController:
             return ConversationPhase.DISCOVERY.value, None
 
         if current_phase == ConversationPhase.EXPLORATION.value:
-            if recommendation_ready:
+            if recommendation_ready or all_eligible_filled:
                 return ConversationPhase.RECOMMENDATION.value, "evidence_sufficient"
             return ConversationPhase.EXPLORATION.value, None
 

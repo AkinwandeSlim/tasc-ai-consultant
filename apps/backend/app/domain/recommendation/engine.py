@@ -53,7 +53,7 @@ class RecommendationEngine:
         candidate_builder: CandidateBuilder | None = None,
         ranker: Ranker | None = None,
         rationale_writer: RationaleWriter | None = None,
-        confidence_floor: float = 0.6,
+        confidence_floor: float = 0.5,
         max_recommendations: int = 3,
     ) -> None:
         self._candidate_builder = candidate_builder or CandidateBuilder()

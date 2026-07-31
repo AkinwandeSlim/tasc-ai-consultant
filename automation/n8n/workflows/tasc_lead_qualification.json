@@ -1,0 +1,287 @@
+{
+  "name": "TASC — AI Lead Qualification Handoff",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tasc/consultation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c04f0618-9393-4c93-b26e-cafcea812e01",
+      "name": "Consultation Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -704,
+        128
+      ],
+      "webhookId": "tasc-consultation"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\n\nconst sharedSecret = $env.TASC_N8N_SHARED_SECRET || '';\nconst signingSecret = $env.TASC_N8N_SIGNING_SECRET || '';\n\nconst qualifiedBands = (($env.TASC_QUALIFIED_BANDS || 'qualified,hot')\n  .toLowerCase())\n  .split(',')\n  .map(s => s.trim())\n  .filter(Boolean);\n\nconst unwrap = (v) => {\n  return (\n    v &&\n    typeof v === 'object' &&\n    !Array.isArray(v) &&\n    'value' in v\n  )\n    ? v.value\n    : v;\n};\n\nconst txt = (v) => {\n  const u = unwrap(v);\n  return (u === null || u === undefined) ? '' : String(u);\n};\n\nconst out = [];\n\nfor (const item of $input.all()) {\n\n  const headers = item.json.headers || {};\n  const body = item.json.body || item.json;\n\n  // ============================================================\n  // 1. AUTHENTICATION\n  // ============================================================\n\n  if (sharedSecret) {\n    const presented =\n      headers['x-tasc-shared-secret'] ||\n      headers['x-shared-secret'] ||\n      '';\n\n    if (presented !== sharedSecret) {\n      throw new Error('AUTH_FAILED: shared secret mismatch');\n    }\n  }\n\n  // ============================================================\n  // 2. SIGNATURE VERIFICATION\n  // ============================================================\n\n  let signatureState = 'skipped';\n\n  const presentedSig = (\n    headers['x-tasc-signature'] ||\n    headers['x-signature'] ||\n    ''\n  ).replace(/^sha256=/, '');\n\n  if (signingSecret && presentedSig) {\n\n    const computed = crypto\n      .createHmac('sha256', signingSecret)\n      .update(JSON.stringify(body))\n      .digest('hex');\n\n    const ok =\n      computed.length === presentedSig.length &&\n      crypto.timingSafeEqual(\n        Buffer.from(computed),\n        Buffer.from(presentedSig)\n      );\n\n    signatureState = ok ? 'valid' : 'mismatch';\n\n    if (\n      !ok &&\n      ($env.TASC_N8N_REQUIRE_SIGNATURE || 'false') === 'true'\n    ) {\n      throw new Error(\n        'SIGNATURE_INVALID: HMAC-SHA256 mismatch'\n      );\n    }\n  }\n\n  // ============================================================\n  // 3. BASIC PAYLOAD VALIDATION\n  // ============================================================\n\n  const sessionId = txt(body.session_id);\n\n  const consultationId =\n    txt(body.consultation_id) || sessionId;\n\n  if (!sessionId && !consultationId) {\n    throw new Error(\n      'VALIDATION_FAILED: session_id or consultation_id is required'\n    );\n  }\n\n  // ============================================================\n  // 4. READ PAYLOAD SECTIONS\n  // ============================================================\n\n  const profile = body.business_profile || {};\n  const qual = body.lead_qualification || {};\n  const conversation = body.conversation || {};\n\n  const contact =\n    body.contact ||\n    profile.contact ||\n    {};\n\n  // ============================================================\n  // 5. LEAD QUALIFICATION\n  // ============================================================\n\n  const band = txt(\n    qual.band || qual.level\n  ).toLowerCase();\n\n  const score = Number(\n    unwrap(qual.score) ?? 0\n  );\n\n  if (!band) {\n    throw new Error(\n      'VALIDATION_FAILED: lead_qualification band/level is required'\n    );\n  }\n\n  // ============================================================\n  // 6. CONTACT + COMPLETION GATE\n  // ============================================================\n\n  const conversationFinished =\n    body.conversation_finished === true;\n\n  const hasContactName =\n    txt(contact.name).trim().length > 0;\n\n  const hasContactEmail =\n    txt(contact.email).trim().length > 0;\n\n  const shouldCreateLead =\n    qualifiedBands.includes(band) &&\n    conversationFinished &&\n    hasContactName &&\n    hasContactEmail;\n\n  // ============================================================\n  // 7. PAIN POINTS\n  // ============================================================\n\n  const painPoints = (\n    profile.pain_points || []\n  )\n    .map(p =>\n      typeof p === 'string'\n        ? p\n        : txt(p.description)\n    )\n    .filter(Boolean);\n\n  // ============================================================\n  // 8. RECOMMENDATIONS\n  // ============================================================\n\n  const recommendations = (\n    body.recommendations || []\n  ).map(r => ({\n    name: txt(\n      r.name ||\n      r.service_name ||\n      r.service\n    ),\n\n    rank: unwrap(\n      r.priority_rank ??\n      r.priority\n    ) ?? null,\n\n    confidence: unwrap(\n      r.confidence\n    ) ?? null,\n\n    rationale: txt(\n      r.rationale ||\n      r.reason\n    )\n  }));\n\n  // ============================================================\n  // 9. OUTPUT\n  // ============================================================\n\n  out.push({\n    json: {\n\n      // Routing\n      is_qualified: shouldCreateLead,\n\n      idempotency_key:\n        `${consultationId}::log_lead`,\n\n      // Provenance\n      signature_state: signatureState,\n\n      received_at:\n        new Date().toISOString(),\n\n      response_type:\n        txt(body.response_type),\n\n      turn_index:\n        unwrap(body.turn_index) ?? null,\n\n      // Identity\n      session_id:\n        sessionId,\n\n      consultation_id:\n        consultationId,\n\n      // Qualification\n      band:\n        band,\n\n      score:\n        score,\n\n      justification:\n        txt(qual.justification),\n\n      // Contact\n      contact_name:\n        txt(contact.name),\n\n      contact_email:\n        txt(contact.email),\n\n      company:\n        txt(contact.company),\n\n      // Business profile\n      industry:\n        txt(profile.industry),\n\n      company_size:\n        txt(profile.company_size),\n\n      timeline:\n        txt(\n          profile.timeline ||\n          body.timeline\n        ),\n\n      budget:\n        txt(\n          profile.budget_band ||\n          profile.budget ||\n          body.budget\n        ),\n\n      decision_role:\n        txt(profile.decision_maker),\n\n      current_tools:\n        (\n          profile.current_tools ||\n          profile.current_systems ||\n          []\n        )\n          .map(txt)\n          .join(', '),\n\n      // Pain points\n      pain_points:\n        painPoints,\n\n      pain_points_text:\n        painPoints.join(' | '),\n\n      // Recommendations\n      recommendations:\n        recommendations,\n\n      recommendations_text:\n        recommendations\n          .map(r =>\n            `${r.name}${\n              r.confidence\n                ? ` (${r.confidence})`\n                : ''\n            }`\n          )\n          .join(', '),\n\n      // Conversation\n      assistant_message:\n        txt(\n          conversation.message ||\n          body.assistant_message\n        )\n    }\n  });\n}\n\nreturn out;"
+      },
+      "id": "c7ebb82d-fda1-4ffe-97ed-749b7739f476",
+      "name": "Validate & Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        128
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-qualified",
+              "leftValue": "={{ $json.is_qualified }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a93c5220-eafa-41a1-afd1-329ee98162b6",
+      "name": "Is Lead Qualified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -240,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.TASC_SHEETS_DOCUMENT_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $env.TASC_SHEETS_TAB_NAME || 'Leads' }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "b4d251c3-b878-44eb-9269-f48591bd17d1",
+      "name": "Log Lead to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        0,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "googleApi": {
+          "id": "piwgGt3sKp4V4NTl",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TASC_TELEGRAM_CHAT_ID }}",
+        "text": "=<b>TASC — {{ $('Validate & Normalize').item.json.band.toUpperCase() }} lead ({{ $('Validate & Normalize').item.json.score }}/100)</b>\n{{ $('Validate & Normalize').item.json.company || $('Validate & Normalize').item.json.contact_name || 'Unnamed' }} · {{ $('Validate & Normalize').item.json.industry || 'industry n/a' }}\nTimeline: {{ $('Validate & Normalize').item.json.timeline || '—' }} · Budget: {{ $('Validate & Normalize').item.json.budget || '—' }}\nTop rec: {{ $('Validate & Normalize').item.json.recommendations_text || '—' }}\nLogged to Sheets + emailed to sales.",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "9167f151-35ff-46dc-a6af-7c9591cd1ecf",
+      "name": "Alert Sales Channel (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        304,
+        0
+      ],
+      "webhookId": "22bf666d-cc4d-4a52-abdd-7035ae650b8e",
+      "credentials": {
+        "telegramApi": {
+          "id": "1Q57llGnAH4uOcH9",
+          "name": "Telegram account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('Validate & Normalize').first().json;\nconst dispatched = src.is_qualified;\n\nreturn [{\n  json: {\n    status: 'acknowledged',\n    consultation_id: src.consultation_id,\n    session_id: src.session_id,\n    band: src.band,\n    score: src.score,\n    signature_state: src.signature_state,\n    workflow_actions: dispatched ? [\n      { action_type: 'log_lead', target_system: 'google_sheets', status: 'dispatched', idempotency_key: `${src.consultation_id}::log_lead` },\n      { action_type: 'send_notification_email', target_system: 'gmail', status: 'dispatched', idempotency_key: `${src.consultation_id}::send_notification_email` },\n      { action_type: 'send_notification_email', target_system: 'internal_alert', status: 'dispatched', idempotency_key: `${src.consultation_id}::telegram_alert` }\n    ] : [\n      { action_type: 'none', target_system: 'internal_alert', status: 'skipped_duplicate', trigger_condition: `band=${src.band} below qualification threshold`, idempotency_key: `${src.consultation_id}::none` }\n    ]\n  }\n}];"
+      },
+      "id": "35319e3c-4686-4b7a-9823-e54a03745f77",
+      "name": "Build Acknowledgement",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "5a41f039-09e3-4e6c-aa5b-0cba103c9987",
+      "name": "Respond 200 to FastAPI",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'rejected', error: $json.error ? $json.error.message : 'payload rejected' }) }}",
+        "options": {}
+      },
+      "id": "cdcd6913-abcc-4cbc-8ad0-946d82aad4d7",
+      "name": "Respond 400 (Rejected)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        304
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Consultation Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate & Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Normalize": {
+      "main": [
+        [
+          {
+            "node": "Is Lead Qualified?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400 (Rejected)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Lead Qualified?": {
+      "main": [
+        [
+          {
+            "node": "Log Lead to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Acknowledgement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Lead to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Alert Sales Channel (Telegram)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Sales Channel (Telegram)": {
+      "main": [
+        [
+          {
+            "node": "Build Acknowledgement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Acknowledgement": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 to FastAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timeSavedPerExecution": 0
+  },
+  "versionId": "34fe14f9-07ea-47e2-a455-dbfe5e30a9ba",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9405316f32de8bb5c72b3a856e5fd4fe3c4d9adc460ce4edb123a807b485ea37"
+  },
+  "nodeGroups": [],
+  "id": "yKFTYMkBb6QUPj1N",
+  "tags": [
+    {
+      "updatedAt": "2026-07-29T17:08:14.731Z",
+      "createdAt": "2026-07-29T17:08:14.731Z",
+      "id": "S9UwmWygTrZariFg",
+      "name": "TASC"
+    }
+  ]
+}

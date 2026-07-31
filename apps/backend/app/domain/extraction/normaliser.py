@@ -201,29 +201,38 @@ class Normaliser:
 
     def normalise_budget(self, raw_text: str) -> NormalisedValue:
         """Normalise a budget band value."""
-        # Check for explicit numbers
+        # Check for explicit numbers — handle "k" (thousands) suffix
         numbers = re.findall(r"\d[\d,]*", raw_text.replace(",", ""))
+        parsed_values: list[int] = []
         for num_str in numbers:
             try:
                 num = int(num_str)
-                budget_ranges = [
-                    ("under_5k", 0, 4999),
-                    ("5k-15k", 5000, 15000),
-                    ("15k-50k", 15001, 50000),
-                    ("50k-100k", 50001, 100000),
-                    ("100k+", 100001, 99999999),
-                ]
-                for band, low, high in budget_ranges:
-                    if low <= num <= high:
-                        return NormalisedValue(
-                            value=band,
-                            normalised=band,
-                            raw=raw_text,
-                            confidence=0.9,
-                            label=band,
-                        )
+                # If this number has a "k" suffix in the original text, multiply by 1000
+                if re.search(rf"{num_str}\s*k", raw_text, re.IGNORECASE):
+                    num *= 1000
+                parsed_values.append(num)
             except ValueError:
                 continue
+
+        if parsed_values:
+            # Use the highest value to determine the band (safest bound)
+            num = max(parsed_values)
+            budget_ranges = [
+                ("under_5k", 0, 4999),
+                ("5k-15k", 5000, 14999),
+                ("15k-50k", 15000, 50000),
+                ("50k-100k", 50001, 100000),
+                ("100k+", 100001, 99999999),
+            ]
+            for band, low, high in budget_ranges:
+                if low <= num <= high:
+                    return NormalisedValue(
+                        value=band,
+                        normalised=band,
+                        raw=raw_text,
+                        confidence=0.9,
+                        label=band,
+                    )
 
         value, label, normalised, confidence = _find_best_match(raw_text, self._budget_vocab)
         return NormalisedValue(value=value, normalised=normalised, raw=raw_text, confidence=confidence, label=label or "")

@@ -40,6 +40,7 @@ class CompletionDetector:
         intent: str | None = None,
         commercial_slots_resolved: bool = False,
         contact_captured: bool = False,
+        contact_declined: bool = False,
         is_idle: bool = False,
         visitor_turn_count: int = 0,
     ) -> CompletionResult:
@@ -64,8 +65,11 @@ class CompletionDetector:
                 reason_code="visitor_requested",
             )
 
-        # 2. Criteria met: capture_and_close phase + contact_captured + commercial resolved
-        if phase in ("capture_and_close",) and contact_captured and commercial_slots_resolved:
+        # Resolve contact status: captured or declined are both terminal
+        contact_resolved = contact_captured or contact_declined
+
+        # 2. Criteria met: capture_and_close phase + contact resolved + commercial resolved
+        if phase in ("capture_and_close",) and contact_resolved and commercial_slots_resolved:
             return CompletionResult(
                 should_complete=True,
                 reason="All completion criteria satisfied",
@@ -73,7 +77,7 @@ class CompletionDetector:
             )
 
         # 3. Visitor explicitly from qualification with all needed data
-        if phase == "qualification" and commercial_slots_resolved and contact_captured:
+        if phase == "qualification" and commercial_slots_resolved and contact_resolved:
             return CompletionResult(
                 should_complete=True,
                 reason="Qualification complete with contact",

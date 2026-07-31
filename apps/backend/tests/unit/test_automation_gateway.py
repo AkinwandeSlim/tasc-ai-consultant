@@ -16,6 +16,7 @@ Verifies:
 from __future__ import annotations
 
 import json
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -24,12 +25,6 @@ from httpx import ASGITransport, AsyncClient, Response
 
 from app.container import build_container
 from app.core.config import Settings, get_settings
-from app.core.exceptions import (
-    GatewayConnectionError,
-    GatewayInvalidResponseError,
-    GatewayRejectedError,
-    GatewayTimeoutError,
-)
 from app.domain.gateway.automation_gateway import (
     AutomationGateway,
     ConsultationRequest,
@@ -230,89 +225,239 @@ class TestMockAutomationGateway:
 
 
 class TestN8nAutomationGateway:
-    """Verify N8nAutomationGateway forwards requests to n8n."""
+    """Verify N8nAutomationGateway processes locally and dispatches to n8n."""
+
+    @pytest.fixture
+    def n8n_gateway(
+        self,
+        n8n_settings: Settings,
+    ) -> N8nAutomationGateway:
+        """Return an N8nAutomationGateway with a real HTTP client."""
+        import httpx
+
+        # Mock the orchestrator so tests don't run the full consultation engine
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.process_turn = AsyncMock(
+            return_value=MagicMock(
+                assistant_message="Local engine response",
+                conversation_phase="discovery",
+                business_profile={"industry": "logistics"},
+                lead_score={"score": 25, "band": "cold"},
+                recommendations=[],
+                completion_percentage=15,
+                next_question="What specific parts are manual?",
+                is_complete=False,
+                completion_reason="",
+                analysis_snapshot=None,
+                errors=[],
+            )
+        )
+
+        client = httpx.AsyncClient()
+        return N8nAutomationGateway(
+            webhook_url=n8n_settings.N8N_WEBHOOK_URL,
+            shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
+            signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
+            http_client=client,
+            orchestrator=mock_orchestrator,
+            timeout_seconds=5.0,
+            max_retries=2,
+            backoff_base_seconds=0.1,
+        ), mock_orchestrator
 
     @pytest.mark.asyncio
-    async def test_successful_dispatch(
+    async def test_returns_local_engine_result(
         self,
         n8n_settings: Settings,
         consultation_request: ConsultationRequest,
-        n8n_webhook_payload: dict,
     ) -> None:
-        """A successful webhook dispatch should return a ConsultationResult."""
+        """The gateway should return the result from the local engine, not n8n."""
+        from unittest.mock import MagicMock
+
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.process_turn = AsyncMock(
+            return_value=MagicMock(
+                assistant_message="Local engine response",
+                conversation_phase="discovery",
+                business_profile={"industry": "logistics"},
+                lead_score={"score": 25, "band": "cold"},
+                recommendations=[],
+                completion_percentage=15,
+                next_question="What specific parts are manual?",
+                is_complete=False,
+                completion_reason="",
+                analysis_snapshot=None,
+                errors=[],
+            )
+        )
+
         async with httpx.AsyncClient() as client:
             gateway = N8nAutomationGateway(
                 webhook_url=n8n_settings.N8N_WEBHOOK_URL,
                 shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
                 signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
                 http_client=client,
+                orchestrator=mock_orchestrator,
                 timeout_seconds=5.0,
                 max_retries=1,
                 backoff_base_seconds=0.1,
             )
 
-            # Use respx to mock the n8n webhook
             with respx.mock:
-                route = respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
-                    return_value=Response(200, json=n8n_webhook_payload)
+                # n8n returns 200 — but gateway should use local result
+                respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
+                    return_value=Response(200, json={"received": True})
                 )
 
                 result = await gateway.process_consultation(consultation_request)
 
-                # Verify the webhook was called with the correct method and headers
-                assert route.called
-                request = route.calls[0].request
-                assert request.method == "POST"
-                assert request.headers["Content-Type"] == "application/json"
-                assert "X-TASC-Secret" in request.headers
-                assert "X-TASC-Signature" in request.headers
-                assert "X-TASC-Timestamp" in request.headers
-
-                # Verify the result matches the webhook response
-                assert result.assistant_message == n8n_webhook_payload["assistant_message"]
-                assert result.conversation_phase == n8n_webhook_payload["conversation_phase"]
+                # Verify local engine result is returned
+                assert result.assistant_message == "Local engine response"
+                assert result.conversation_phase == "discovery"
+                assert result.lead_score == {"score": 25, "band": "cold"}
                 assert isinstance(result, ConsultationResult)
 
     @pytest.mark.asyncio
-    async def test_timeout_raises_gateway_timeout(
+    async def test_dispatches_to_n8n(
         self,
         n8n_settings: Settings,
         consultation_request: ConsultationRequest,
     ) -> None:
-        """A timeout should raise GatewayTimeoutError."""
+        """The gateway should dispatch the result to n8n after local processing."""
+        from unittest.mock import MagicMock
+
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.process_turn = AsyncMock(
+            return_value=MagicMock(
+                assistant_message="Local response",
+                conversation_phase="discovery",
+                business_profile={"industry": "logistics"},
+                lead_score={"score": 25, "band": "cold"},
+                recommendations=[],
+                completion_percentage=15,
+                next_question="What specific parts are manual?",
+                is_complete=False,
+                completion_reason="",
+                analysis_snapshot=None,
+                errors=[],
+            )
+        )
+
         async with httpx.AsyncClient() as client:
             gateway = N8nAutomationGateway(
                 webhook_url=n8n_settings.N8N_WEBHOOK_URL,
                 shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
                 signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
                 http_client=client,
+                orchestrator=mock_orchestrator,
+                timeout_seconds=5.0,
+                max_retries=1,
+                backoff_base_seconds=0.1,
+            )
+
+            with respx.mock:
+                route = respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
+                    return_value=Response(200, json={"received": True})
+                )
+
+                await gateway.process_consultation(consultation_request)
+
+                # Verify the webhook was called with correct headers
+                assert route.called
+                request = route.calls[0].request
+                assert request.method == "POST"
+                assert request.headers["Content-Type"] == "application/json"
+                assert "X-TASC-Shared-Secret" in request.headers
+                assert "X-TASC-Signature" in request.headers
+                assert "X-TASC-Timestamp" in request.headers
+
+                # Verify the payload includes consultation fields
+                body = json.loads(request.content)
+                assert body["assistant_message"] == "Local response"
+                assert body["conversation_phase"] == "discovery"
+                assert body["session_id"] == consultation_request.session_id
+
+    @pytest.mark.asyncio
+    async def test_n8n_timeout_does_not_block_response(
+        self,
+        n8n_settings: Settings,
+        consultation_request: ConsultationRequest,
+    ) -> None:
+        """An n8n timeout should be logged but NOT raised — local result is returned."""
+        from unittest.mock import MagicMock
+
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.process_turn = AsyncMock(
+            return_value=MagicMock(
+                assistant_message="Local engine response",
+                conversation_phase="discovery",
+                business_profile=None,
+                lead_score=None,
+                recommendations=[],
+                completion_percentage=0,
+                next_question=None,
+                is_complete=False,
+                completion_reason="",
+                analysis_snapshot=None,
+                errors=[],
+            )
+        )
+
+        async with httpx.AsyncClient() as client:
+            gateway = N8nAutomationGateway(
+                webhook_url=n8n_settings.N8N_WEBHOOK_URL,
+                shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
+                signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
+                http_client=client,
+                orchestrator=mock_orchestrator,
                 timeout_seconds=0.1,
                 max_retries=1,
                 backoff_base_seconds=0.05,
             )
 
             with respx.mock:
-                # Simulate a timeout by using a slow response
                 respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
                     side_effect=httpx.TimeoutException("Request timed out", request=None)
                 )
 
-                with pytest.raises(GatewayTimeoutError):
-                    await gateway.process_consultation(consultation_request)
+                # Should NOT raise — n8n timeout is swallowed
+                result = await gateway.process_consultation(consultation_request)
+
+                assert result.assistant_message == "Local engine response"
 
     @pytest.mark.asyncio
-    async def test_connection_error_raises_gateway_connection(
+    async def test_n8n_connection_error_does_not_block_response(
         self,
         n8n_settings: Settings,
         consultation_request: ConsultationRequest,
     ) -> None:
-        """A connection error should raise GatewayConnectionError."""
+        """An n8n connection error should be logged but NOT raised."""
+        from unittest.mock import MagicMock
+
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.process_turn = AsyncMock(
+            return_value=MagicMock(
+                assistant_message="Local engine response",
+                conversation_phase="discovery",
+                business_profile=None,
+                lead_score=None,
+                recommendations=[],
+                completion_percentage=0,
+                next_question=None,
+                is_complete=False,
+                completion_reason="",
+                analysis_snapshot=None,
+                errors=[],
+            )
+        )
+
         async with httpx.AsyncClient() as client:
             gateway = N8nAutomationGateway(
                 webhook_url=n8n_settings.N8N_WEBHOOK_URL,
                 shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
                 signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
                 http_client=client,
+                orchestrator=mock_orchestrator,
                 timeout_seconds=5.0,
                 max_retries=1,
                 backoff_base_seconds=0.1,
@@ -323,22 +468,44 @@ class TestN8nAutomationGateway:
                     side_effect=httpx.ConnectError("Connection refused")
                 )
 
-                with pytest.raises(GatewayConnectionError):
-                    await gateway.process_consultation(consultation_request)
+                # Should NOT raise — connection error is swallowed
+                result = await gateway.process_consultation(consultation_request)
+
+                assert result.assistant_message == "Local engine response"
 
     @pytest.mark.asyncio
-    async def test_401_raises_gateway_rejected(
+    async def test_n8n_401_does_not_block_response(
         self,
         n8n_settings: Settings,
         consultation_request: ConsultationRequest,
     ) -> None:
-        """A 401 auth failure should raise GatewayRejectedError (no retry)."""
+        """An n8n 401 should be logged but NOT raise — local result is returned."""
+        from unittest.mock import MagicMock
+
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.process_turn = AsyncMock(
+            return_value=MagicMock(
+                assistant_message="Local engine response",
+                conversation_phase="discovery",
+                business_profile=None,
+                lead_score=None,
+                recommendations=[],
+                completion_percentage=0,
+                next_question=None,
+                is_complete=False,
+                completion_reason="",
+                analysis_snapshot=None,
+                errors=[],
+            )
+        )
+
         async with httpx.AsyncClient() as client:
             gateway = N8nAutomationGateway(
                 webhook_url=n8n_settings.N8N_WEBHOOK_URL,
                 shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
                 signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
                 http_client=client,
+                orchestrator=mock_orchestrator,
                 timeout_seconds=5.0,
                 max_retries=2,
                 backoff_base_seconds=0.1,
@@ -349,83 +516,46 @@ class TestN8nAutomationGateway:
                     return_value=Response(401, json={"error": "unauthorized"})
                 )
 
-                with pytest.raises(GatewayRejectedError):
-                    await gateway.process_consultation(consultation_request)
+                # Should NOT raise — 401 is logged, not raised
+                result = await gateway.process_consultation(consultation_request)
 
+                assert result.assistant_message == "Local engine response"
                 # Should only be called once (no retry on 401)
                 assert route.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_403_raises_gateway_rejected(
+    async def test_n8n_500_retried_but_local_result_returned(
         self,
         n8n_settings: Settings,
         consultation_request: ConsultationRequest,
     ) -> None:
-        """A 403 auth failure should raise GatewayRejectedError (no retry)."""
-        async with httpx.AsyncClient() as client:
-            gateway = N8nAutomationGateway(
-                webhook_url=n8n_settings.N8N_WEBHOOK_URL,
-                shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
-                signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
-                http_client=client,
-                timeout_seconds=5.0,
-                max_retries=2,
-                backoff_base_seconds=0.1,
+        """n8n 5xx should be retried, but local result is still returned regardless."""
+        from unittest.mock import MagicMock
+
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.process_turn = AsyncMock(
+            return_value=MagicMock(
+                assistant_message="Local engine response",
+                conversation_phase="discovery",
+                business_profile=None,
+                lead_score=None,
+                recommendations=[],
+                completion_percentage=0,
+                next_question=None,
+                is_complete=False,
+                completion_reason="",
+                analysis_snapshot=None,
+                errors=[],
             )
+        )
 
-            with respx.mock:
-                route = respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
-                    return_value=Response(403, json={"error": "forbidden"})
-                )
-
-                with pytest.raises(GatewayRejectedError):
-                    await gateway.process_consultation(consultation_request)
-
-                assert route.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_409_treated_as_success(
-        self,
-        n8n_settings: Settings,
-        consultation_request: ConsultationRequest,
-    ) -> None:
-        """A 409 idempotency match should be treated as success."""
         async with httpx.AsyncClient() as client:
             gateway = N8nAutomationGateway(
                 webhook_url=n8n_settings.N8N_WEBHOOK_URL,
                 shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
                 signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
                 http_client=client,
-                timeout_seconds=5.0,
-                max_retries=1,
-                backoff_base_seconds=0.1,
-            )
-
-            with respx.mock:
-                route = respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
-                    return_value=Response(409, json={"error": "duplicate"})
-                )
-
-                result = await gateway.process_consultation(consultation_request)
-
-                assert route.called
-                assert isinstance(result, ConsultationResult)
-                # 409 should return an empty/idempotent result
-                assert result.assistant_message == ""
-
-    @pytest.mark.asyncio
-    async def test_500_retries_then_raises(
-        self,
-        n8n_settings: Settings,
-        consultation_request: ConsultationRequest,
-    ) -> None:
-        """A 500 error should be retried then raise GatewayConnectionError."""
-        async with httpx.AsyncClient() as client:
-            gateway = N8nAutomationGateway(
-                webhook_url=n8n_settings.N8N_WEBHOOK_URL,
-                shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
-                signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
-                http_client=client,
+                orchestrator=mock_orchestrator,
                 timeout_seconds=5.0,
                 max_retries=3,
                 backoff_base_seconds=0.05,
@@ -436,126 +566,64 @@ class TestN8nAutomationGateway:
                     return_value=Response(500, json={"error": "server error"})
                 )
 
-                with pytest.raises(GatewayConnectionError):
-                    await gateway.process_consultation(consultation_request)
+                # Should NOT raise — 5xx is swallowed after retries exhausted
+                result = await gateway.process_consultation(consultation_request)
 
+                assert result.assistant_message == "Local engine response"
                 # Should have retried up to max_retries times
                 assert route.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_422_raises_gateway_rejected(
+    async def test_n8n_retry_then_success_still_returns_local(
         self,
         n8n_settings: Settings,
         consultation_request: ConsultationRequest,
     ) -> None:
-        """A 422 client error should raise GatewayRejectedError (no retry)."""
+        """Even when n8n eventually succeeds, the local result is what matters."""
+        from unittest.mock import MagicMock
+
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.process_turn = AsyncMock(
+            return_value=MagicMock(
+                assistant_message="Local engine response",
+                conversation_phase="discovery",
+                business_profile={"industry": "logistics"},
+                lead_score={"score": 25, "band": "cold"},
+                recommendations=[],
+                completion_percentage=15,
+                next_question="What specific parts are manual?",
+                is_complete=False,
+                completion_reason="",
+                analysis_snapshot=None,
+                errors=[],
+            )
+        )
+
         async with httpx.AsyncClient() as client:
             gateway = N8nAutomationGateway(
                 webhook_url=n8n_settings.N8N_WEBHOOK_URL,
                 shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
                 signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
                 http_client=client,
+                orchestrator=mock_orchestrator,
                 timeout_seconds=5.0,
                 max_retries=2,
                 backoff_base_seconds=0.1,
             )
 
             with respx.mock:
-                route = respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
-                    return_value=Response(422, json={"error": "validation error"})
-                )
-
-                with pytest.raises(GatewayRejectedError):
-                    await gateway.process_consultation(consultation_request)
-
-                assert route.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_invalid_json_raises_invalid_response(
-        self,
-        n8n_settings: Settings,
-        consultation_request: ConsultationRequest,
-    ) -> None:
-        """Invalid JSON response should raise GatewayInvalidResponseError."""
-        async with httpx.AsyncClient() as client:
-            gateway = N8nAutomationGateway(
-                webhook_url=n8n_settings.N8N_WEBHOOK_URL,
-                shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
-                signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
-                http_client=client,
-                timeout_seconds=5.0,
-                max_retries=1,
-                backoff_base_seconds=0.1,
-            )
-
-            with respx.mock:
-                respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
-                    return_value=Response(200, content=b"not-json-{{{")
-                )
-
-                with pytest.raises(GatewayInvalidResponseError):
-                    await gateway.process_consultation(consultation_request)
-
-    @pytest.mark.asyncio
-    async def test_invalid_response_type_raises(
-        self,
-        n8n_settings: Settings,
-        consultation_request: ConsultationRequest,
-    ) -> None:
-        """A non-dict JSON response should raise GatewayInvalidResponseError."""
-        async with httpx.AsyncClient() as client:
-            gateway = N8nAutomationGateway(
-                webhook_url=n8n_settings.N8N_WEBHOOK_URL,
-                shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
-                signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
-                http_client=client,
-                timeout_seconds=5.0,
-                max_retries=1,
-                backoff_base_seconds=0.1,
-            )
-
-            with respx.mock:
-                respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
-                    return_value=Response(200, json=["list", "not", "dict"])
-                )
-
-                with pytest.raises(GatewayInvalidResponseError):
-                    await gateway.process_consultation(consultation_request)
-
-    @pytest.mark.asyncio
-    async def test_retry_with_backoff(
-        self,
-        n8n_settings: Settings,
-        consultation_request: ConsultationRequest,
-    ) -> None:
-        """Retries should occur with backoff on 5xx errors."""
-        async with httpx.AsyncClient() as client:
-            gateway = N8nAutomationGateway(
-                webhook_url=n8n_settings.N8N_WEBHOOK_URL,
-                shared_secret=n8n_settings.N8N_SHARED_SECRET.get_secret_value(),
-                signing_secret=n8n_settings.N8N_SIGNING_SECRET.get_secret_value(),
-                http_client=client,
-                timeout_seconds=5.0,
-                max_retries=2,
-                backoff_base_seconds=0.1,
-            )
-
-            with respx.mock:
-                # First call fails with 502, second succeeds
                 route = respx.post(n8n_settings.N8N_WEBHOOK_URL).mock(
                     side_effect=[
                         Response(502, json={"error": "bad gateway"}),
-                        Response(200, json={
-                            "assistant_message": "Success!",
-                            "conversation_phase": "discovery",
-                        }),
+                        Response(200, json={"acknowledged": True}),
                     ]
                 )
 
                 result = await gateway.process_consultation(consultation_request)
 
                 assert route.call_count == 2
-                assert result.assistant_message == "Success!"
+                # Result is from local engine, not from n8n
+                assert result.assistant_message == "Local engine response"
 
 
 # ── DI Container Tests ────────────────────────────────────────────────
@@ -675,13 +743,13 @@ class TestSigningModule:
             correlation_id="corr-001",
         )
 
-        assert "X-TASC-Secret" in headers
+        assert "X-TASC-Shared-Secret" in headers
         assert "X-TASC-Signature" in headers
         assert "X-TASC-Timestamp" in headers
         assert "X-Correlation-Id" in headers
         assert "Content-Type" in headers
 
-        assert headers["X-TASC-Secret"] == "shared-secret"
+        assert headers["X-TASC-Shared-Secret"] == "shared-secret"
         assert headers["X-TASC-Signature"].startswith("sha256=")
         assert headers["X-Correlation-Id"] == "corr-001"
         assert headers["Content-Type"] == "application/json"

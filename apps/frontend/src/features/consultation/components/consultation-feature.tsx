@@ -94,6 +94,7 @@ export function ConsultationFeature({
           <ChatInput
             onSend={handleSend}
             disabled={isWaiting || session.status === "completed" || session.status === "terminated"}
+            conversationFinished={session.status === "completed" || session.status === "terminated"}
           />
         </div>
 

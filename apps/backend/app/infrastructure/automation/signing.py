@@ -81,7 +81,7 @@ def build_signature_headers(
     signature = sign_payload(payload, signing_secret)
 
     return {
-        "X-TASC-Secret": shared_secret,
+        "X-TASC-Shared-Secret": shared_secret,
         "X-TASC-Signature": f"sha256={signature}",
         "X-TASC-Timestamp": str(timestamp),
         "X-Correlation-Id": correlation_id,

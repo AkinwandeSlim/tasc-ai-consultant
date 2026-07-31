@@ -36,8 +36,9 @@ services:
       - APP_ENV=${APP_ENV:-local}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - LLM_CHAT_MODEL=${LLM_CHAT_MODEL:-gpt-4.1-mini}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4.1-mini}
       - LLM_EMBEDDING_MODEL=${LLM_EMBEDDING_MODEL:-text-embedding-3-small}
       - CHROMA_MODE=http
       - CHROMA_HTTP_URL=http://chroma:8000
@@ -128,7 +129,20 @@ services:
       - N8N_METRICS=false
       - WEBHOOK_URL=http://localhost:5678/
       - N8N_SECURE_COOKIE=false
-      - TASC_SHARED_SECRET=${N8N_SHARED_SECRET:-}
+      - TASC_SHARED_SECRET=tasc-demo-secret-2026
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto
+      - TASC_N8N_SHARED_SECRET=tasc-demo-secret-2026
+      - TASC_N8N_SIGNING_SECRET=tasc-demo-signing-2026
+      - TASC_N8N_REQUIRE_SIGNATURE=false
+      - TASC_QUALIFIED_BANDS=qualified,hot
+      - TASC_SHEETS_DOCUMENT_ID=1briEHSEpTL0sdkNOz7rECF8bu0vvqsunnJHDHD506D0
+      - TASC_SHEETS_TAB_NAME=Leads
+      - TASC_SALES_EMAIL=akinwandealex95@gmail.com
+      - TASC_TELEGRAM_CHAT_ID=-5474451496
+
+
+      
     volumes:
       - n8n_data:/home/node/.n8n
       - ./automation/n8n/workflows:/home/node/.n8n/workflows:ro

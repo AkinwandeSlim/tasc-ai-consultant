@@ -195,6 +195,86 @@ class TestSlotExtractor:
         result = self.extractor.extract("I'm the CEO and will be leading this.")
         assert result.slots.get("decision_role", {}).get("value") == "decision_maker"
 
+    def test_extract_company_name(self) -> None:
+        """Extract company name from 'at' pattern."""
+        result = self.extractor.extract(
+            "I work at Swift Freight, a logistics company."
+        )
+        assert result.slots.get("contact_company", {}).get("value") == "Swift Freight"
+
+    def test_extract_company_with_tagline(self) -> None:
+        """Extract company name from 'Company:' prefix."""
+        result = self.extractor.extract(
+            "Company: Swift Freight. We do logistics."
+        )
+        assert result.slots.get("contact_company", {}).get("value") == "Swift Freight"
+
+    def test_extract_company_we_are(self) -> None:
+        """Extract company name from 'We are X' pattern."""
+        result = self.extractor.extract(
+            "We are Swift Freight, a logistics company."
+        )
+        assert result.slots.get("contact_company", {}).get("value") == "Swift Freight"
+
+    def test_extract_company_null_for_generic(self) -> None:
+        """Generic text must NOT extract a company name."""
+        result = self.extractor.extract(
+            "That sounds great, what do you recommend?"
+        )
+        assert result.slots.get("contact_company") is None, (
+            "must not extract company from generic text"
+        )
+
+    def test_contact_name_stops_at_and_email(self) -> None:
+        """'name X and email' must not capture beyond the name."""
+        result = self.extractor.extract(
+            "Name: Akinwande Alex and email: alex@example.com"
+        )
+        name = result.slots.get("contact_name", {}).get("value")
+        assert name == "Akinwande Alex", f"expected 'Akinwande Alex', got '{name}'"
+
+    def test_contact_name_skips_share_your_name(self) -> None:
+        """'your name and email' must not capture 'and email' as a name."""
+        result = self.extractor.extract(
+            "Here is my name and email: Akinwande Alex, alex@example.com"
+        )
+        name = result.slots.get("contact_name", {}).get("value")
+        # The key check: name must not be an empty generic word
+        assert name is None or name not in ("and email", "and", "email"), (
+            f"contact_name must not be a generic word, got '{name}'"
+        )
+
+    def test_contact_name_multiline_name_email(self) -> None:
+        """Name on one line, Email on the next must still extract name."""
+        result = self.extractor.extract(
+            "Name: Fakorede Akinwande Alex\nEmail: akinwandealex95@gmail.com"
+        )
+        name = result.slots.get("contact_name", {}).get("value")
+        assert name == "Fakorede Akinwande Alex", (
+            f"expected 'Fakorede Akinwande Alex', got '{name}'"
+        )
+        email = result.slots.get("contact_email", {}).get("value")
+        assert email == "akinwandealex95@gmail.com", (
+            f"expected 'akinwandealex95@gmail.com', got '{email}'"
+        )
+
+    def test_gmail_not_extracted_in_email_address(self) -> None:
+        """Gmail tool must NOT be extracted from email addresses."""
+        result = self.extractor.extract(
+            "My email is john@gmail.com and I use Excel for reporting."
+        )
+        assert "Excel" in result.current_tools
+        assert "Gmail" not in result.current_tools, (
+            "Gmail must not be extracted from email addresses"
+        )
+
+    def test_gmail_still_extracted_as_tool(self) -> None:
+        """Standalone 'gmail' mention should still be extracted."""
+        result = self.extractor.extract(
+            "We use Gmail for all our internal communication."
+        )
+        assert "Gmail" in result.current_tools
+
     def test_empty_message(self) -> None:
         """Empty message returns empty result."""
         result = self.extractor.extract("")
@@ -238,6 +318,29 @@ class TestNormaliser:
         result = self.normaliser.normalise_budget("budget around 30k to 40k")
         # Should match via number pattern
         assert result.value is not None
+
+    def test_normalise_budget_with_k_suffix(self) -> None:
+        """'15k-20k' should normalise to '15k-50k', not 'under_5k'."""
+        result = self.normaliser.normalise_budget("budget around 15k-20k for first phase")
+        assert result.value is not None
+        assert result.value != "under_5k", (
+            f"budget '15k-20k' must not be 'under_5k', got '{result.value}'"
+        )
+        # 15k = 15000, 20k = 20000 — use max, so 20000 falls in 15k-50k
+        assert result.value == "15k-50k", (
+            f"expected '15k-50k' for 15k-20k budget, got '{result.value}'"
+        )
+        assert result.confidence >= 0.8
+
+    def test_normalise_budget_with_single_k(self) -> None:
+        """'30k' should normalise to '15k-50k'."""
+        result = self.normaliser.normalise_budget("our budget is about 30k")
+        assert result.value == "15k-50k"
+
+    def test_normalise_budget_with_plain_number(self) -> None:
+        """'5000' without k suffix should still work as before."""
+        result = self.normaliser.normalise_budget("we have 5000 to spend")
+        assert result.value == "5k-15k"
 
     def test_normalise_decision_maker(self) -> None:
         """Normalise decision maker role."""
@@ -557,6 +660,11 @@ class TestScoringComponents:
         """under_5k = 2."""
         result = compute_budget("under_5k")
         assert result.awarded == 2
+
+    def test_budget_15k_50k(self) -> None:
+        """15k-50k = 12."""
+        result = compute_budget("15k-50k")
+        assert result.awarded == 12
 
     def test_authority_decision_maker(self) -> None:
         """Decision maker = 10."""
@@ -1107,6 +1215,465 @@ class TestConsultationOrchestrator:
             visitor_message="We are a logistics company with 180 employees.",
         )
         assert result1.lead_score["raw_score"] == result2.lead_score["raw_score"]
+
+    # ── State Persistence Regression Tests ──────────────────────────────
+
+    async def test_state_persists_slot_map_between_turns(self) -> None:
+        """Slot map from turn 1 must be available in turn 2."""
+        session = await self.orchestrator.start_consultation()
+
+        # Turn 1: provide industry, business_size, pain_points
+        result1 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We run a logistics company with 30 employees. "
+            "Order processing is manual and takes too long.",
+        )
+        assert result1.assistant_message
+        # After turn 1, slot_map should be in session
+        sm = session.get("slot_map")
+        assert sm is not None, "slot_map must be written back to session_state"
+        assert sm.industry.value == "logistics"
+        assert sm.business_size.value is not None
+        assert len(sm.pain_points) >= 1
+
+        # Turn 2: provide goals (no industry/business_size re-stated)
+        result2 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We want to automate order processing "
+            "and improve delivery tracking.",
+        )
+        assert result2.assistant_message
+        # Turn 1's slot_map must still be present
+        sm2 = session.get("slot_map")
+        assert sm2 is not None
+        assert sm2.industry.value == "logistics", (
+            "industry from turn 1 must persist in slot_map after turn 2"
+        )
+        assert sm2.business_size.value is not None, (
+            "business_size from turn 1 must persist in slot_map after turn 2"
+        )
+        # Goals from turn 2 should be added
+        assert len(sm2.goals) >= 1, "goals from turn 2 should be in slot_map"
+
+    async def test_does_not_reask_current_tools_after_captured(self) -> None:
+        """Once current_tools is captured, the next turn must not ask for it."""
+        session = await self.orchestrator.start_consultation()
+
+        # Turn 1: say enough to get to discovery/exploration
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We are a logistics company with 180 employees. "
+            "Order processing is manual and error-prone.",
+        )
+
+        # Turn 2: provide current_tools
+        result2 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We currently use Excel spreadsheets and an ERP system.",
+        )
+        assert result2.assistant_message
+
+        # Verify current_tools is in slot_map
+        sm = session.get("slot_map")
+        assert sm is not None
+        assert "Excel" in sm.current_tools, "current_tools must include Excel"
+
+        # Turn 3: provide goals (no tools mentioned)
+        result3 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We want to fully automate order-to-cash and "
+            "give customers a tracking portal.",
+        )
+        assert result3.assistant_message
+        # next_question may be None when all phase-eligible slots are filled
+        # and the deepening fallback has already been asked. This is correct
+        # — the response generator will use a phase-specific fallback rather
+        # than repeating the same question.
+        if result3.next_question:
+            # The question must NOT be about current_tools
+            assert "what are you currently using" not in result3.next_question.lower(), (
+                "must not re-ask current_tools after it was captured"
+            )
+            assert "what do you currently use" not in result3.next_question.lower(), (
+                "must not re-ask current_tools after it was captured"
+            )
+
+        # current_tools must still be in slot_map
+        sm3 = session.get("slot_map")
+        assert sm3 is not None
+        assert "Excel" in sm3.current_tools
+
+    async def test_does_not_reask_goals_after_captured(self) -> None:
+        """Once goals are captured, the next turn must not ask for goals again."""
+        session = await self.orchestrator.start_consultation()
+
+        # Turn 1: populate initial slots
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We run a retail business with 50 employees. "
+            "Inventory tracking is manual and causes stockouts.",
+        )
+
+        # Turn 2: provide current_tools
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We use Excel and a legacy POS system.",
+        )
+
+        # Turn 3: provide goals — use explicit "automate" to match goal patterns
+        result3 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We want to automate inventory tracking across all "
+            "three warehouses and reduce costs significantly.",
+        )
+        assert result3.assistant_message
+        sm3 = session.get("slot_map")
+        assert sm3 is not None
+        assert len(sm3.goals) >= 1, "goals from turn 3 should be in slot_map"
+
+        # Turn 4: provide pain points (no goals)
+        result4 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="The stockouts are costing us about £10k per month "
+            "in lost sales and emergency shipping.",
+        )
+        assert result4.assistant_message
+
+        # Turn 4's next_question must NOT be about goals
+        if result4.next_question:
+            assert "success look like" not in result4.next_question.lower(), (
+                "must not re-ask goals after they were captured"
+            )
+
+        # goals must still be in slot_map
+        sm4 = session.get("slot_map")
+        assert sm4 is not None
+        assert len(sm4.goals) >= 1
+
+    async def test_pain_points_retained_across_turns(self) -> None:
+        """Pain points from earlier turns must remain in slot_map."""
+        session = await self.orchestrator.start_consultation()
+
+        # Turn 1: mention first pain point
+        result1 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We are a logistics company with 180 employees.",
+        )
+        assert result1.assistant_message
+
+        # Turn 2: mention a specific pain point
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="Order processing is all manual, we have "
+            "three people doing data entry full-time.",
+        )
+
+        sm2 = session.get("slot_map")
+        pp_count_after_turn2 = len(sm2.pain_points) if sm2 else 0
+
+        # Turn 3: mention a different pain point + tools
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We also struggle with disconnected systems — "
+            "our ERP doesn't talk to the warehouse system. We use Excel.",
+        )
+
+        sm3 = session.get("slot_map")
+        assert sm3 is not None
+        # Pain points from turn 2 must still be present
+        assert len(sm3.pain_points) >= pp_count_after_turn2, (
+            f"pain points should not decrease (were {pp_count_after_turn2}, "
+            f"now {len(sm3.pain_points)})"
+        )
+        assert len(sm3.current_tools) >= 1, "current_tools must be in slot_map"
+
+    async def test_subsequent_turns_advance_to_next_missing_field(self) -> None:
+        """After filling one field, the selector picks the next unfilled one."""
+        session = await self.orchestrator.start_consultation()
+
+        # Turn 1: industry + business_size
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We run a logistics company with 180 employees.",
+        )
+
+        # Turn 2: current_tools
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We use Excel spreadsheets and WhatsApp for everything.",
+        )
+        sm2 = session.get("slot_map")
+        assert sm2 is not None
+        assert "Excel" in sm2.current_tools
+
+        # Turn 3: the next question should be about pain_points or goals,
+        # NOT industry, business_size, or current_tools (already captured)
+        result3 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="The manual processes are causing delays "
+            "and customer complaints are rising.",
+        )
+        assert result3.assistant_message
+        sm3 = session.get("slot_map")
+        assert sm3 is not None
+        assert sm3.industry.value == "logistics", "industry from turn 1 must persist"
+        assert sm3.business_size.value is not None, "business_size from turn 1 must persist"
+        assert "Excel" in sm3.current_tools, "current_tools from turn 2 must persist"
+
+    async def test_full_logistics_consultation_does_not_repeat(self) -> None:
+        """A multi-turn logistics consultation should not repeat questions.
+
+        This is the actual regression from the bug report: the deterministic
+        engine was repeating 'current_tools' even after it was provided.
+        """
+        session = await self.orchestrator.start_consultation()
+
+        # Turn 1: company introduction
+        r1 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We are Swift Freight, a logistics company "
+            "that handles deliveries for businesses across Nigeria. "
+            "We have about 30 employees and manage around 500 deliveries per month.",
+        )
+        assert len(r1.assistant_message) > 0
+        sm1 = session.get("slot_map")
+        assert sm1 is not None
+        assert sm1.industry.value == "logistics"
+        assert sm1.business_size.value is not None
+
+        # Turn 2: current_tools
+        r2 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We currently use Excel spreadsheets and WhatsApp "
+            "to coordinate orders, drivers, and customers. "
+            "Most of the process is manual.",
+        )
+        assert len(r2.assistant_message) > 0
+        sm2 = session.get("slot_map")
+        assert sm2 is not None
+        assert "Excel" in sm2.current_tools
+        assert len(sm2.pain_points) >= 1  # "manual" triggered pain extraction
+
+        # Turn 3: goals/success
+        r3 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We want to automate order processing and "
+            "have a system that can track deliveries and provide customers "
+            "with real-time delivery updates.",
+        )
+        assert len(r3.assistant_message) > 0
+        sm3 = session.get("slot_map")
+        assert sm3 is not None
+        assert len(sm3.goals) >= 1, "goals should be captured"
+        # Must NOT re-ask current_tools
+        if r3.next_question:
+            assert "what are you currently using" not in r3.next_question.lower()
+
+        # Turn 4: pain points elaboration — should NOT revert to current_tools
+        r4 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="Our biggest problem is that order processing "
+            "is manual and takes too much staff time. We also don't have "
+            "good visibility into driver locations and delivery ETAs.",
+        )
+        assert len(r4.assistant_message) > 0
+        sm4 = session.get("slot_map")
+        assert sm4 is not None
+        assert "Excel" in sm4.current_tools, "current_tools must still be in slot_map"
+        assert len(sm4.goals) >= 1, "goals must still be in slot_map"
+        # The next question must be about a field that hasn't been captured yet
+        if r4.next_question:
+            assert "what are you currently using" not in r4.next_question.lower()
+
+        # Turn 5: should still not ask about current_tools after goals confirmation
+        r5 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We want to automate order processing and "
+            "have a system that can track deliveries and provide customers "
+            "with real-time delivery updates.",
+        )
+        assert len(r5.assistant_message) > 0
+        sm5 = session.get("slot_map")
+        assert sm5 is not None
+        assert "Excel" in sm5.current_tools
+        if r5.next_question:
+            assert "what are you currently using" not in r5.next_question.lower()
+            assert "what do you currently use" not in r5.next_question.lower()
+
+    # ── Contact Capture Regression Tests ─────────────────────────────
+
+    async def _drive_to_capture_and_close(self, session: dict) -> None:
+        """Helper: drive session through all phases to capture_and_close.
+
+        After this returns, the session is in capture_and_close phase
+        with commercial slots filled, waiting for contact info.
+        """
+        # Turn 1: fill core slots (industry + size + pain_points + goals)
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We run a logistics company with 30 employees. "
+            "Order processing is manual and error-prone. "
+            "We want to automate order processing.",
+        )
+        # Turn 2: current_tools
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We currently use Excel and WhatsApp.",
+        )
+        # Turn 3: progress from exploration to recommendation
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="I'm ready to hear your recommendations.",
+        )
+        # Turn 4: acknowledge recommendation
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="That sounds good, what do you recommend?",
+        )
+        # Turn 5: fill commercial slots (timeline + budget + decision_role)
+        await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="We need this within 3 months. "
+            "Budget is around 15k. I'm the operations director.",
+        )
+
+    async def test_valid_email_advances_past_contact_capture(self) -> None:
+        """A valid email with name must advance past contact capture.
+
+        Regression: previously the engine had no contact extraction at
+        all, so providing "Name: X, Email: Y" was a no-op. After this
+        fix, a valid email sets contact_email + consent_granted, which
+        satisfies the completion criteria.
+        """
+        session = await self.orchestrator.start_consultation()
+        await self._drive_to_capture_and_close(session)
+
+        # Verify we are in capture_and_close with commercial data
+        assert session.get("phase") == "capture_and_close"
+
+        # Turn 6: provide valid contact info
+        result = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="Name: Akinwande Alex, Email: akinwande@example.com",
+        )
+
+        assert result.is_complete is True, (
+            "consultation must complete when valid email is provided"
+        )
+
+        # Slot map should have contact data
+        sm = session.get("slot_map")
+        assert sm is not None
+        assert sm.contact_email.value == "akinwande@example.com"
+        assert sm.contact_name.value == "Akinwande Alex"
+
+    async def test_invalid_email_does_not_complete_contact_capture(self) -> None:
+        """An invalid email (no @domain) must NOT advance contact capture.
+
+        Regression: invalid emails like "akinwandealex9507" lack the @
+        domain pattern and must be rejected. The consultation should
+        remain in capture_and_close with is_complete=False.
+        """
+        session = await self.orchestrator.start_consultation()
+        await self._drive_to_capture_and_close(session)
+
+        assert session.get("phase") == "capture_and_close"
+
+        # Turn 6: provide invalid email (no @domain)
+        result = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="Name: Akinwande Alex, Email: akinwandealex9507",
+        )
+
+        assert result.is_complete is False, (
+            "consultation must NOT complete with an invalid email"
+        )
+        assert result.conversation_phase == "capture_and_close", (
+            "must stay in capture_and_close with invalid email"
+        )
+
+        # Contact email must NOT be extracted (invalid format)
+        sm = session.get("slot_map")
+        assert sm is not None
+        assert sm.contact_email.value is None, (
+            "invalid email must not be accepted as contact_email"
+        )
+
+        # Name should still be extracted even though email is invalid
+        if sm.contact_name.value:
+            assert isinstance(sm.contact_name.value, str)
+            assert len(sm.contact_name.value) >= 2
+
+        # BusinessProfile should also reflect no contact captured
+        bp = result.business_profile
+        assert bp is None or bp.get("has_contact") is False, (
+            "has_contact must be false when email is invalid"
+        )
+
+    async def test_contact_skip_allows_progression(self) -> None:
+        """Saying 'skip' during contact capture must allow completion.
+
+        The consultation should complete even without contact info
+        if the user explicitly declines to provide it. Must not loop
+        the same question forever.
+        """
+        session = await self.orchestrator.start_consultation()
+        await self._drive_to_capture_and_close(session)
+
+        assert session.get("phase") == "capture_and_close"
+
+        # Turn 6: say "skip" instead of providing contact
+        result = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="skip",
+        )
+
+        assert result.is_complete is True, (
+            "consultation must complete when user skips contact"
+        )
+        # The response should acknowledge the skip, not ask for contact
+        msg = result.assistant_message.lower()
+        assert "skip" in msg or "no problem" in msg or (
+            "thank you" in msg and "consultant" in msg
+        ), f"response should acknowledge skip, got: {result.assistant_message}"
+
+        # Contact must be marked as declined in slot_map
+        sm = session.get("slot_map")
+        assert sm is not None
+        assert sm.contact_email.declined is True, (
+            "contact_email must be marked declined when user skips"
+        )
+
+    async def test_repeated_invalid_email_does_not_create_infinite_loop(self) -> None:
+        """Repeated invalid emails should eventually stabilise.
+
+        After providing an invalid email, the response tells the user
+        the email is invalid. A subsequent non-contact message should
+        not create an infinite loop — the phase may remain in
+        capture_and_close but with different response text.
+        """
+        session = await self.orchestrator.start_consultation()
+        await self._drive_to_capture_and_close(session)
+
+        # Turn 6: first invalid email
+        r1 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="Name: Test User, Email: bad-email",
+        )
+        # Should get the invalid email feedback, not the generic fallback
+        assert "doesn't look quite right" in r1.assistant_message or (
+            "name@domain" in r1.assistant_message
+        ), f"expected invalid-email feedback, got: {r1.assistant_message}"
+        assert r1.is_complete is False
+
+        # Turn 7: provide valid contact this time
+        r2 = await self.orchestrator.process_turn(
+            session_state=session,
+            visitor_message="Name: Test User, Email: testuser@example.com",
+        )
+        assert r2.is_complete is True, (
+            "valid email after invalid attempt must complete"
+        )
 
 
 # =============================================================================

@@ -144,7 +144,14 @@ class QuestionSelector:
 
         if not scored_slots:
             # Fallback: ask a deepening question about highest-confidence pain
-            if hasattr(slot_map, "pain_points") and slot_map.pain_points:
+            # Only ask once — if pain_points is already in questions_asked,
+            # return None so the response generator uses a phase-specific
+            # fallback instead of repeating the same deepening question.
+            if (
+                hasattr(slot_map, "pain_points")
+                and slot_map.pain_points
+                and "pain_points" not in questions_asked
+            ):
                 return SelectedQuestion(
                     slot="pain_points",
                     template_id="pain_points.deepen",
@@ -171,6 +178,12 @@ class QuestionSelector:
     @staticmethod
     def _is_slot_filled(slot: str, slot_map: Any) -> bool:
         """Check if a slot has a filled value."""
+        # Special case: "contact" is a compound slot — check contact_email.
+        # SlotMap has separate contact_name / contact_email fields; the
+        # question selector uses "contact" as the logical gate for asking.
+        if slot == "contact":
+            ce = getattr(slot_map, "contact_email", None)
+            return bool(getattr(ce, "value", None))
         if hasattr(slot_map, slot):
             value = getattr(slot_map, slot)
             if value is None:
@@ -184,6 +197,10 @@ class QuestionSelector:
     @staticmethod
     def _is_slot_declined(slot: str, slot_map: Any) -> bool:
         """Check if a slot has been declined."""
+        # Special case: "contact" declined maps to contact_email.declined
+        if slot == "contact":
+            ce = getattr(slot_map, "contact_email", None)
+            return getattr(ce, "declined", False)
         if hasattr(slot_map, slot):
             value = getattr(slot_map, slot)
             if hasattr(value, "declined") and value.declined:

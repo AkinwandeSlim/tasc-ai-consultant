@@ -42,6 +42,7 @@ class ProcessedTurn:
     recommendations: list[dict[str, Any]] = field(default_factory=list)
     completion_percentage: int = 0
     next_question: str | None = None
+    next_question_slot: str | None = None
     completion_result: CompletionResult | None = None
     intent_result: IntentResult | None = None
     extraction_result: ExtractionResult | None = None
@@ -173,17 +174,50 @@ class ConversationManager:
         core_filled = business_profile.core_slots_filled
         pain_count = len(business_profile.manageable_pain_points)
 
+        # Check whether all eligible slots for the current phase have data.
+        # When the question selector has nothing left to ask, the phase
+        # should advance even if strict evidence criteria aren't met.
+        all_eligible_filled = bool(
+            business_profile.pain_points
+            and business_profile.current_tools
+            and business_profile.goals
+        )
+
         next_phase, trigger = self._phase_controller.evaluate(
             current_phase=current_phase,
             core_slots_filled=core_filled,
             confidence_met=core_filled >= 3,
             recommendation_ready=(pain_count >= 2 and business_profile.industry.value is not None),
-            recommendation_acknowledged=intent_result.intent == "answer_question",
+            recommendation_acknowledged=(
+                current_phase == "recommendation"
+                and intent_result.intent
+                not in ("anti_persona", "request_human", "end_conversation")
+            ) or intent_result.intent == "answer_question",
             commercial_slots_resolved=business_profile.commercial_slots_filled >= 3,
             visitor_requested_human=intent_result.intent == "request_human",
             anti_persona=intent_result.intent == "anti_persona",
             discovery_refused_count=0,
+            all_eligible_filled=all_eligible_filled,
         )
+
+        # --- Step 7.5: Detect contact skip/decline/invalid during capture_and_close ---
+        contact_skipped = False
+        contact_invalid_tried = False
+        if next_phase == "capture_and_close":
+            _text_lower = visitor_message.strip().lower()
+            _skip_texts = frozenset({
+                "okay", "ok", "skip", "no", "no thanks", "not now",
+                "skip it", "i'll pass", "maybe later", "nah", "nope",
+                "pass", "i pass", "not interested", "no thank you",
+            })
+            if intent_result.intent == "end_conversation" or _text_lower in _skip_texts:
+                contact_skipped = True
+                # Mark contact as declined so question selector skips it
+                updated_slot_map.contact_email.declined = True
+                business_profile.contact_email.declined = True
+            elif "contact_name" in merge_result.changed and "contact_email" not in merge_result.changed:
+                # User provided a name but the email didn't pass validation
+                contact_invalid_tried = True
 
         # --- Step 8: Select next question ---
         selected_question = self._question_selector.select_question(
@@ -193,6 +227,10 @@ class ConversationManager:
         )
 
         # --- Step 9: Generate response ---
+        contact_captured = bool(
+            business_profile.contact_email.value
+            and business_profile.consent_granted
+        )
         assistant_message = self._generate_response(
             current_phase=next_phase,
             business_profile=business_profile,
@@ -200,6 +238,9 @@ class ConversationManager:
             selected_question=selected_question,
             merge_result=merge_result,
             visitor_message=visitor_message,
+            has_contact=contact_captured,
+            contact_skipped=contact_skipped,
+            contact_invalid_tried=contact_invalid_tried,
         )
 
         # --- Step 10: Check completion ---
@@ -212,6 +253,7 @@ class ConversationManager:
             intent=intent_result.intent,
             commercial_slots_resolved=business_profile.commercial_slots_filled >= 3,
             contact_captured=has_contact,
+            contact_declined=contact_skipped,
             visitor_turn_count=visitor_turn_count + 1,
         )
 
@@ -236,6 +278,7 @@ class ConversationManager:
             recommendations=[],
             completion_percentage=progress.percent,
             next_question=selected_question.question_text if selected_question else None,
+            next_question_slot=selected_question.slot if selected_question else None,
             completion_result=completion_result,
             intent_result=intent_result,
             extraction_result=extraction_result,
@@ -350,6 +393,48 @@ class ConversationManager:
                 source_turn=slot_map.decision_role.source_turn,
                 declined=slot_map.decision_role.declined,
             )
+        # Contact fields — sync from SlotMap to BusinessProfile
+        if slot_map.contact_company.value:
+            profile.contact_company = SlotValue(
+                value=slot_map.contact_company.value,
+                normalised=slot_map.contact_company.normalised,
+                raw=slot_map.contact_company.raw,
+                confidence=slot_map.contact_company.confidence,
+                source_turn=slot_map.contact_company.source_turn,
+                declined=slot_map.contact_company.declined,
+            )
+        if slot_map.contact_email.value:
+            profile.contact_email = SlotValue(
+                value=slot_map.contact_email.value,
+                normalised=slot_map.contact_email.normalised,
+                raw=slot_map.contact_email.raw,
+                confidence=slot_map.contact_email.confidence,
+                source_turn=slot_map.contact_email.source_turn,
+                declined=slot_map.contact_email.declined,
+            )
+        elif slot_map.contact_email.declined:
+            # Sync declined state even without a value (e.g. user skipped)
+            profile.contact_email.declined = True
+        if slot_map.contact_name.value:
+            profile.contact_name = SlotValue(
+                value=slot_map.contact_name.value,
+                normalised=slot_map.contact_name.normalised,
+                raw=slot_map.contact_name.raw,
+                confidence=slot_map.contact_name.confidence,
+                source_turn=slot_map.contact_name.source_turn,
+                declined=slot_map.contact_name.declined,
+            )
+            profile.contact_name = SlotValue(
+                value=slot_map.contact_name.value,
+                normalised=slot_map.contact_name.normalised,
+                raw=slot_map.contact_name.raw,
+                confidence=slot_map.contact_name.confidence,
+                source_turn=slot_map.contact_name.source_turn,
+                declined=slot_map.contact_name.declined,
+            )
+        # Providing a valid email address implies consent to be contacted
+        if profile.contact_email.value and not profile.consent_granted:
+            profile.consent_granted = True
         return profile
 
     def _generate_response(
@@ -360,6 +445,9 @@ class ConversationManager:
         selected_question: SelectedQuestion | None,
         merge_result: MergeResult,
         visitor_message: str,
+        has_contact: bool = False,
+        contact_skipped: bool = False,
+        contact_invalid_tried: bool = False,
     ) -> str:
         """Generate a deterministic response based on current state.
 
@@ -452,6 +540,27 @@ class ConversationManager:
             )
 
         if phase == "capture_and_close":
+            # If contact is already captured, close gracefully
+            if has_contact:
+                return (
+                    "Thank you — I've captured your details and a consultant "
+                    "will follow up within one working day. You're all set."
+                )
+            # User chose to skip — acknowledge and close
+            if contact_skipped:
+                return (
+                    "No problem at all. A consultant can follow up with you "
+                    "through this chat if you have questions later. "
+                    "Thank you for the conversation today."
+                )
+            # User tried to provide an email but it didn't pass validation
+            if contact_invalid_tried:
+                return (
+                    "The email you provided doesn't look quite right — "
+                    "it needs a format like name@domain.com. "
+                    "Could you double-check and try again? "
+                    "You can also say 'skip' if you'd rather not share it."
+                )
             if selected_question:
                 return selected_question.question_text
             return (

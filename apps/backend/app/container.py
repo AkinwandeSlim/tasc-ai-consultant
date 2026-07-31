@@ -64,11 +64,13 @@ def build_container(settings: Settings) -> Container:
 
     The automation gateway is selected based on N8N_ENABLED:
       - False: MockAutomationGateway (local deterministic engine)
-      - True:  N8nAutomationGateway (forwards to external n8n webhook)
+      - True:  N8nAutomationGateway (processes locally, dispatches result
+               to n8n webhook for business automation)
 
-    When LLM_ENABLED=True and N8N_ENABLED=False, the MockAutomationGateway
-    uses LlmConsultationEngine instead of ConsultationOrchestrator, with
-    automatic fallback to the deterministic engine on failure.
+    Both gateways always process the consultation turn locally using the
+    deterministic ConsultationOrchestrator (or LlmConsultationEngine when
+    LLM_ENABLED=True). n8n dispatch is fire-and-forget — failures never
+    block the frontend response.
     """
     from app.orchestration.orchestrator import ConsultationOrchestrator
 
@@ -109,6 +111,11 @@ def build_container(settings: Settings) -> Container:
 
     # --- Automation gateway ---
     if settings.N8N_ENABLED:
+        # When LLM_ENABLED, use LlmConsultationEngine; otherwise use deterministic
+        n8n_orchestrator: Any = deterministic_orchestrator
+        if settings.LLM_ENABLED and container.llm_engine is not None:
+            n8n_orchestrator = container.llm_engine
+
         container.automation_gateway = N8nAutomationGateway(
             webhook_url=settings.N8N_WEBHOOK_URL,
             shared_secret=settings.N8N_SHARED_SECRET.get_secret_value()
@@ -116,6 +123,7 @@ def build_container(settings: Settings) -> Container:
             signing_secret=settings.N8N_SIGNING_SECRET.get_secret_value()
             if settings.N8N_SIGNING_SECRET else "",
             http_client=container.http_client,
+            orchestrator=n8n_orchestrator,
             timeout_seconds=settings.N8N_TIMEOUT_SECONDS,
             max_retries=settings.N8N_MAX_ATTEMPTS,
             backoff_base_seconds=settings.N8N_BACKOFF_BASE_SECONDS,
